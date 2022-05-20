@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 serialport = "4.1.0"
-
-common = { path = "../common" }
+anyhow = "1.0.57"
+glam = "0.20.5"

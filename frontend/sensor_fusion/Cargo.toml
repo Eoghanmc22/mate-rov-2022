@@ -1,11 +1,11 @@
 [package]
-name = "exec"
+name = "sensor_fusion"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-common = { path = "../common" }
+anyhow = "1.0.57"
 serial = { path = "../serial" }
-eframe = "0.18.0"
+glam = "0.20.5"

@@ -1,9 +1,10 @@
-use std::error::Error;
+#![feature(never_type)]
+
 use std::io::{BufRead, Read};
 use std::time::Duration;
-use common::vec::Vec3d;
+use glam::Vec3;
 
-pub fn listen_to_port<F: FnMut(Frame)>(port: &str, data_callback: &mut F) -> Result<(), Box<dyn Error>> {
+pub fn listen_to_port<F: FnMut(Frame) -> anyhow::Result<()>>(port: &str, mut data_callback: F) -> anyhow::Result<!> {
     let mut port = serialport::new(port, 57_600)
         .open_native().expect("Failed to open port");
 
@@ -23,7 +24,7 @@ pub fn listen_to_port<F: FnMut(Frame)>(port: &str, data_callback: &mut F) -> Res
 
         for frame in frames.iter() {
             if let Some(frame) = decode_frame(frame) {
-                (data_callback)(frame);
+                (data_callback)(frame)?;
             }
         }
 
@@ -67,42 +68,44 @@ fn decode_frame(frame: &str) -> Option<Frame> {
     let mag_y = vals.next()?.ok()?;
     let mag_z = vals.next()?.ok()?;
 
+    let pressure = parts.next()?[1..].parse::<u16>().ok()?;
+
     let collection_ms = parts.next()?[1..].parse::<u64>().ok()?;
     let total_ms = parts.next()?[1..].parse::<u64>().ok()?;
 
-    Some(raw_to_frame(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, mag_x, mag_y, mag_z, collection_ms, total_ms))
+    Some(raw_to_frame(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, mag_x, mag_y, mag_z, pressure, collection_ms, total_ms))
 }
 
-// +/- 4g
-const ACCEL_FS: f64 = 4.0;
-// +/- 500dps
-const GYRO_FS: f64 = 500.0;
-// +/- 8 gauss
-const MAG_FS: f64 = 8.0;
+const G_M : f32 = 9.80665;
+const ACCEL_GAIN: f32 = 0.122 / 1000.0 * G_M;
+const GYRO_GAIN: f32 = 17.50 / 1000.0;
+const MAG_GAIN: f32 = 1.0 / 3421.0;
 
-const G_M : f64 = 9.80665;
-const ACCEL_GAIN: f64 = ACCEL_FS * 2.0 / 32768.0 * G_M;
-const GYRO_GAIN: f64 = GYRO_FS * 2.0 / 32768.0;
-const MAG_GAIN: f64 = MAG_FS * 2.0 / 32768.0;
+const G_X_OFFSET: f32 = 1.33794096;
+const G_Y_OFFSET: f32 = -4.30960008;
+const G_Z_OFFSET: f32 = -1.02645828;
 
 
-fn raw_to_frame(accel_x: i16, accel_y: i16, accel_z: i16, gyro_x: i16, gyro_y: i16, gyro_z: i16, mag_x: i16, mag_y: i16, mag_z: i16, collection_ms: u64, total_ms: u64) -> Frame {
-    let accel_x = accel_x as f64 * ACCEL_GAIN;
-    let accel_y = accel_y as f64 * ACCEL_GAIN;
-    let accel_z = accel_z as f64 * ACCEL_GAIN;
+fn raw_to_frame(accel_x: i16, accel_y: i16, accel_z: i16, gyro_x: i16, gyro_y: i16, gyro_z: i16, mag_x: i16, mag_y: i16, mag_z: i16, pressure: u16, collection_ms: u64, total_ms: u64) -> Frame {
+    let accel_x = accel_x as f32 * ACCEL_GAIN;
+    let accel_y = accel_y as f32 * ACCEL_GAIN;
+    let accel_z = accel_z as f32 * ACCEL_GAIN;
 
-    let gyro_x = gyro_x as f64 * GYRO_GAIN;
-    let gyro_y = gyro_y as f64 * GYRO_GAIN;
-    let gyro_z = gyro_z as f64 * GYRO_GAIN;
+    let gyro_x = gyro_x as f32 * GYRO_GAIN - G_X_OFFSET;
+    let gyro_y = gyro_y as f32 * GYRO_GAIN - G_Y_OFFSET;
+    let gyro_z = gyro_z as f32 * GYRO_GAIN - G_Z_OFFSET;
 
-    let mag_x = mag_x as f64 * MAG_GAIN;
-    let mag_y = mag_y as f64 * MAG_GAIN;
-    let mag_z = mag_z as f64 * MAG_GAIN;
+    let mag_x = mag_x as f32 * MAG_GAIN;
+    let mag_y = mag_y as f32 * MAG_GAIN;
+    let mag_z = mag_z as f32 * MAG_GAIN;
+
+    let pressure = (pressure as f32 / 1023.0 - 0.5) / 4.0 * 100.0;
 
     Frame {
-        acceleration: Vec3d::new(accel_x, accel_y, accel_z),
-        gyro: Vec3d::new(gyro_x, gyro_y, gyro_z),
-        mag: Vec3d::new(mag_x, mag_y, mag_z),
+        acceleration: Vec3::new(accel_x, accel_y, accel_z),
+        gyro: Vec3::new(gyro_x, gyro_y, gyro_z),
+        mag: Vec3::new(mag_x, mag_y, mag_z),
+        pressure,
         collection_duration: Duration::from_millis(collection_ms),
         total_duration: Duration::from_millis(total_ms)
     }
@@ -110,9 +113,10 @@ fn raw_to_frame(accel_x: i16, accel_y: i16, accel_z: i16, gyro_x: i16, gyro_y: i
 
 #[derive(Debug)]
 pub struct Frame {
-    pub acceleration: Vec3d,
-    pub gyro: Vec3d,
-    pub mag: Vec3d,
+    pub acceleration: Vec3,
+    pub gyro: Vec3,
+    pub mag: Vec3,
+    pub pressure: f32,
 
     pub collection_duration: Duration,
     pub total_duration: Duration

@@ -1,0 +1,16 @@
+[package]
+name = "mate_gui"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy = { version = "0.7.0", features = ["dynamic"] }
+opencv = "0.63.1"
+crossbeam = "0.8.1"
+anyhow = "1.0.57"
+serial = { path = "../serial" }
+sensor_fusion = { path = "../sensor_fusion" }
+glam = "0.20.5"
+smooth-bevy-cameras = "0.4.0"

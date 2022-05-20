@@ -49,6 +49,9 @@ void loop() {
   Serial.print(",");
   Serial.print((int) buff[5] << 8 | buff[4]);
 
+  Serial.print(" P");
+  Serial.print(analogRead(A0));
+
   Serial.print(" T");
   Serial.print(millis() - startTime);
 
