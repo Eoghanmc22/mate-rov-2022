@@ -1,6 +1,7 @@
 #![feature(never_type)]
 
 use std::io::{BufRead, Read};
+use std::thread;
 use std::time::Duration;
 use glam::Vec3;
 
@@ -11,24 +12,26 @@ pub fn listen_to_port<F: FnMut(Frame) -> anyhow::Result<()>>(port: &str, mut dat
     let mut buf = [0; 200];
     let mut last_end = 0;
 
-    // first read seems to get junk data
-    // look into why / if this is needed
-    let _ = port.read(&mut buf)?;
-
     loop {
-        let read = port.read(&mut buf[last_end..])?;
-        let available = read + last_end;
+        let btr = port.bytes_to_read()? as usize;
+        if btr > 0 {
+            let buf_end = usize::min(btr + last_end, buf.len());
+            let read = port.read(&mut buf[last_end..buf_end])?;
+            let available = read + last_end;
 
-        let (frames, removed) = find_frames(&buf[..available]);
-        buf.copy_within(available - removed..available, 0);
+            let (frames, removed) = find_frames(&buf[..available]);
+            buf.copy_within(available - removed..available, 0);
 
-        for frame in frames.iter() {
-            if let Some(frame) = decode_frame(frame) {
-                (data_callback)(frame)?;
+            for frame in frames.iter() {
+                if let Some(frame) = decode_frame(frame) {
+                    (data_callback)(frame)?;
+                }
             }
-        }
 
-        last_end = removed;
+            last_end = removed;
+        } else {
+            thread::sleep(Duration::from_millis(5))
+        }
     }
 }
 
@@ -43,8 +46,12 @@ fn find_frames(buffer: &[u8]) -> (Vec<String>, usize) {
     }
 
     if buffer[buffer.len() - 1] != NEW_LINE {
-        let removed = frames.pop().expect("No frame to remove");
-        (frames, removed.len())
+        if frames.len() >= 1 {
+            let removed = frames.pop().unwrap();
+            (frames, removed.len())
+        } else {
+            (vec![], buffer.len())
+        }
     } else {
         (frames, 0)
     }
