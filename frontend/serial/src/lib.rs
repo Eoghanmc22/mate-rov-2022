@@ -4,6 +4,35 @@ use std::io::{BufRead, Read};
 use std::thread;
 use std::time::Duration;
 use glam::Vec3;
+use serialport::{SerialPort, SerialPortType};
+
+pub fn listen<F: FnMut(Frame) -> anyhow::Result<()>>(data_callback: F) -> anyhow::Result<!> {
+    let port =
+        serialport::available_ports()?
+            .into_iter()
+            .find(|port| {
+                match &port.port_type {
+                    SerialPortType::UsbPort(info) => {
+                        if info.vid == 9025 && info.pid == 67 {
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    _ => {
+                        false
+                    }
+                }
+            });
+
+    if let Some(port) = port {
+        println!("Selected port {}", port.port_name);
+        listen_to_port(&port.port_name, data_callback)
+    } else {
+        panic!("No suitable serial port found")
+    }
+
+}
 
 pub fn listen_to_port<F: FnMut(Frame) -> anyhow::Result<()>>(port: &str, mut data_callback: F) -> anyhow::Result<!> {
     let mut port = serialport::new(port, 57_600)

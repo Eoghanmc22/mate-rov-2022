@@ -188,8 +188,7 @@ mod communication {
             ..default()
         };
 
-        // FIXME GET COM PORT DYNAMICALLY
-        serial::listen_to_port("COM6", move |frame| {
+        serial::listen(move |frame| {
             for command in rx_command.try_iter() {
                 match command {
                     SerialCommand::ResetState => {
