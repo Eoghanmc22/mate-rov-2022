@@ -48,7 +48,7 @@ void enableIMU(){
       writeTo(LSM6DSL_ADDRESS,LSM6DSL_CTRL3_C,0b01000100);         // Enable Block Data update, increment during multi byte read
 
       //initialise the gyroscope
-      writeTo(LSM6DSL_ADDRESS,LSM6DSL_CTRL2_G,0b10010100);         // ODR 3.3 kHz, 500 dps
+      writeTo(LSM6DSL_ADDRESS,LSM6DSL_CTRL2_G,0b10011100);         // ODR 3.3 kHz, +/- 2000 dps
 
       //initialise the magnetometer
       writeTo(LIS3MDL_ADDRESS,LIS3MDL_CTRL_REG1, 0b11011100);      // Temp sesnor enabled, High performance, ODR 80 Hz, FAST ODR disabled and Selft test disabled.

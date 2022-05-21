@@ -78,7 +78,7 @@ fn decode_frame(frame: &str) -> Option<Frame> {
 
 const G_M : f32 = 9.80665;
 const ACCEL_GAIN: f32 = 0.122 / 1000.0 * G_M;
-const GYRO_GAIN: f32 = 17.50 / 1000.0;
+const GYRO_GAIN: f32 = 70.0 / 1000.0;
 const MAG_GAIN: f32 = 1.0 / 3421.0;
 
 const G_X_OFFSET: f32 = 1.33794096;
