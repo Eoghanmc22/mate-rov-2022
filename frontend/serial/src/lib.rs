@@ -121,11 +121,14 @@ const G_X_OFFSET: f32 = 1.33794096;
 const G_Y_OFFSET: f32 = -4.30960008;
 const G_Z_OFFSET: f32 = -1.02645828;
 
+const A_X_OFFSET: f32 = 0.0;
+const A_Y_OFFSET: f32 = 0.0;
+const A_Z_OFFSET: f32 = 0.0;
 
 fn raw_to_frame(accel_x: i16, accel_y: i16, accel_z: i16, gyro_x: i16, gyro_y: i16, gyro_z: i16, mag_x: i16, mag_y: i16, mag_z: i16, pressure: u16, collection_ms: u64, total_ms: u64) -> Frame {
-    let accel_x = accel_x as f32 * ACCEL_GAIN;
-    let accel_y = accel_y as f32 * ACCEL_GAIN;
-    let accel_z = accel_z as f32 * ACCEL_GAIN;
+    let accel_x = accel_x as f32 * ACCEL_GAIN - A_X_OFFSET;
+    let accel_y = accel_y as f32 * ACCEL_GAIN - A_Y_OFFSET;
+    let accel_z = accel_z as f32 * ACCEL_GAIN - A_Z_OFFSET;
 
     let gyro_x = gyro_x as f32 * GYRO_GAIN - G_X_OFFSET;
     let gyro_y = gyro_y as f32 * GYRO_GAIN - G_Y_OFFSET;
