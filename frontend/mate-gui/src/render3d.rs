@@ -121,9 +121,23 @@ fn setup_3d(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materi
         material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
         ..default()
     });
+    // x+
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Box::new(0.1, 0.1, 0.1))),
+        transform: Transform::from_xyz(0.45, 0.0, 0.1),
+        material: materials.add(Color::rgb(1.0, 0.0, 0.0).into()),
+        ..default()
+    });
     // y
     commands.spawn_bundle(PbrBundle {
         mesh: meshes.add(Mesh::from(shape::Box::new(0.1, 1.0, 0.1))),
+        material: materials.add(Color::rgb(0.0, 1.0, 0.0).into()),
+        ..default()
+    });
+    // y+
+    commands.spawn_bundle(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Box::new(0.1, 0.1, 0.1))),
+        transform: Transform::from_xyz(0.0, 0.45, 0.1),
         material: materials.add(Color::rgb(0.0, 1.0, 0.0).into()),
         ..default()
     });
