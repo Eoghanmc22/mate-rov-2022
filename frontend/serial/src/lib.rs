@@ -35,7 +35,7 @@ pub fn listen<F: FnMut(Frame) -> anyhow::Result<()>>(data_callback: F) -> anyhow
 }
 
 pub fn listen_to_port<F: FnMut(Frame) -> anyhow::Result<()>>(port: &str, mut data_callback: F) -> anyhow::Result<!> {
-    let mut port = serialport::new(port, 57_600)
+    let mut port = serialport::new(port, 115200)
         .open_native().expect("Failed to open port");
 
     let mut buf = [0; 200];
@@ -88,25 +88,25 @@ fn find_frames(buffer: &[u8]) -> (Vec<String>, usize) {
 fn decode_frame(frame: &str) -> Option<Frame> {
     let mut parts = frame.split(" ");
 
-    let mut vals = parts.next()?[1..].split(',').map(|it| it.parse::<i16>());
+    let mut vals = parts.next()?.get(1..)?.split(',').map(|it| it.parse::<i16>());
     let accel_x = vals.next()?.ok()?;
     let accel_y = vals.next()?.ok()?;
     let accel_z = vals.next()?.ok()?;
 
-    let mut vals = parts.next()?[1..].split(',').map(|it| it.parse::<i16>());
+    let mut vals = parts.next()?.get(1..)?.split(',').map(|it| it.parse::<i16>());
     let gyro_x = vals.next()?.ok()?;
     let gyro_y = vals.next()?.ok()?;
     let gyro_z = vals.next()?.ok()?;
 
-    let mut vals = parts.next()?[1..].split(',').map(|it| it.parse::<i16>());
+    let mut vals = parts.next()?.get(1..)?.split(',').map(|it| it.parse::<i16>());
     let mag_x = vals.next()?.ok()?;
     let mag_y = vals.next()?.ok()?;
     let mag_z = vals.next()?.ok()?;
 
-    let pressure = parts.next()?[1..].parse::<u16>().ok()?;
+    let pressure = parts.next()?.get(1..)?.parse::<u16>().ok()?;
 
-    let collection_ms = parts.next()?[1..].parse::<u64>().ok()?;
-    let total_ms = parts.next()?[1..].parse::<u64>().ok()?;
+    let collection_ms = parts.next()?.get(1..)?.parse::<u64>().ok()?;
+    let total_ms = parts.next()?.get(1..)?.parse::<u64>().ok()?;
 
     if parts.count() > 0 {
         return None;
@@ -120,25 +120,18 @@ const ACCEL_GAIN: f32 = 0.122 / 1000.0 * G_M;
 const GYRO_GAIN: f32 = 70.0 / 1000.0;
 const MAG_GAIN: f32 = 1.0 / 3421.0;
 
-const G_X_OFFSET: f32 = 0.0;
-const G_Y_OFFSET: f32 = 0.0;
-const G_Z_OFFSET: f32 = 0.0;
-
-const A_X_OFFSET: f32 = 0.0;
-const A_Y_OFFSET: f32 = 0.0;
-const A_Z_OFFSET: f32 = 0.0;
 
 //gyro sample mean 30000, x: 1.400736, y: -4.4032674, z: -1.1412126
 //gyro sample mean 518000, x: 1.367721, y: -4.466497, z: -1.0681778
 //gyro sample mean 549000, x: 1.3885181, y: -4.5077543, z: -0.9722978
 
-/*const G_X_OFFSET: f32 = 1.33794096;
-const G_Y_OFFSET: f32 = -4.30960008;
-const G_Z_OFFSET: f32 = -1.02645828;
+const G_X_OFFSET: f32 = 1.373729015;
+const G_Y_OFFSET: f32 = -4.421779695;
+const G_Z_OFFSET: f32 = -1.05203662;
 
 const A_X_OFFSET: f32 = 0.0;
 const A_Y_OFFSET: f32 = 0.0;
-const A_Z_OFFSET: f32 = 0.0;*/
+const A_Z_OFFSET: f32 = 0.0;
 
 fn raw_to_frame(accel_x: i16, accel_y: i16, accel_z: i16, gyro_x: i16, gyro_y: i16, gyro_z: i16, mag_x: i16, mag_y: i16, mag_z: i16, pressure: u16, collection_ms: u64, total_ms: u64) -> Frame {
     let accel_x = accel_x as f32 * ACCEL_GAIN - A_X_OFFSET;
