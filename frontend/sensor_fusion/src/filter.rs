@@ -26,8 +26,6 @@ impl HighPass3d {
         bias.y = (1.0 - alpha) * bias.y + alpha * sample.y;
         bias.z = (1.0 - alpha) * bias.z + alpha * sample.z;
 
-        println!("bias: {:?}", bias);
-
         sample - *bias
     }
 }

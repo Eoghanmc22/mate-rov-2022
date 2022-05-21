@@ -43,6 +43,7 @@ pub fn listen_to_port<F: FnMut(Frame) -> anyhow::Result<()>>(port: &str, mut dat
 
     loop {
         let btr = port.bytes_to_read()? as usize;
+
         if btr > 0 {
             let buf_end = usize::min(btr + last_end, buf.len());
             let read = port.read(&mut buf[last_end..buf_end])?;
@@ -51,15 +52,18 @@ pub fn listen_to_port<F: FnMut(Frame) -> anyhow::Result<()>>(port: &str, mut dat
             let (frames, removed) = find_frames(&buf[..available]);
             buf.copy_within(available - removed..available, 0);
 
+
             for frame in frames.iter() {
-                if let Some(frame) = decode_frame(frame) {
+                if let Some(frame) = decode_frame(frame.trim()) {
                     (data_callback)(frame)?;
+                } else {
+                    eprintln!("Dropped frame: {}", frame);
                 }
             }
 
             last_end = removed;
         } else {
-            thread::sleep(Duration::from_millis(5))
+            thread::sleep(Duration::from_millis(1))
         }
     }
 }
@@ -68,22 +72,17 @@ const NEW_LINE : u8 = 0x0A;
 const CHAR_A : u8 = 0x41;
 
 fn find_frames(buffer: &[u8]) -> (Vec<String>, usize) {
-    let mut frames = buffer.lines().flatten().collect::<Vec<String>>();
+    let start = buffer.iter().position(|&byte| byte == CHAR_A);
+    let end = buffer.iter().rposition(|&byte| byte == NEW_LINE);
 
-    if buffer[0] != CHAR_A {
-        frames.remove(0);
-    }
-
-    if buffer[buffer.len() - 1] != NEW_LINE {
-        if frames.len() >= 1 {
-            let removed = frames.pop().unwrap();
-            (frames, removed.len())
-        } else {
-            (vec![], buffer.len())
+    if let (Some(start), Some(end)) = (start, end) {
+        if end > start {
+            let frames: Vec<String> = (&buffer[start..end]).lines().flatten().collect();
+            return (frames, buffer.len() - end);
         }
-    } else {
-        (frames, 0)
     }
+
+    (vec![], buffer.len())
 }
 
 fn decode_frame(frame: &str) -> Option<Frame> {
@@ -109,6 +108,10 @@ fn decode_frame(frame: &str) -> Option<Frame> {
     let collection_ms = parts.next()?[1..].parse::<u64>().ok()?;
     let total_ms = parts.next()?[1..].parse::<u64>().ok()?;
 
+    if parts.count() > 0 {
+        return None;
+    }
+
     Some(raw_to_frame(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, mag_x, mag_y, mag_z, pressure, collection_ms, total_ms))
 }
 
@@ -117,13 +120,25 @@ const ACCEL_GAIN: f32 = 0.122 / 1000.0 * G_M;
 const GYRO_GAIN: f32 = 70.0 / 1000.0;
 const MAG_GAIN: f32 = 1.0 / 3421.0;
 
-const G_X_OFFSET: f32 = 1.33794096;
+const G_X_OFFSET: f32 = 0.0;
+const G_Y_OFFSET: f32 = 0.0;
+const G_Z_OFFSET: f32 = 0.0;
+
+const A_X_OFFSET: f32 = 0.0;
+const A_Y_OFFSET: f32 = 0.0;
+const A_Z_OFFSET: f32 = 0.0;
+
+//gyro sample mean 30000, x: 1.400736, y: -4.4032674, z: -1.1412126
+//gyro sample mean 518000, x: 1.367721, y: -4.466497, z: -1.0681778
+//gyro sample mean 549000, x: 1.3885181, y: -4.5077543, z: -0.9722978
+
+/*const G_X_OFFSET: f32 = 1.33794096;
 const G_Y_OFFSET: f32 = -4.30960008;
 const G_Z_OFFSET: f32 = -1.02645828;
 
 const A_X_OFFSET: f32 = 0.0;
 const A_Y_OFFSET: f32 = 0.0;
-const A_Z_OFFSET: f32 = 0.0;
+const A_Z_OFFSET: f32 = 0.0;*/
 
 fn raw_to_frame(accel_x: i16, accel_y: i16, accel_z: i16, gyro_x: i16, gyro_y: i16, gyro_z: i16, mag_x: i16, mag_y: i16, mag_z: i16, pressure: u16, collection_ms: u64, total_ms: u64) -> Frame {
     let accel_x = accel_x as f32 * ACCEL_GAIN - A_X_OFFSET;
