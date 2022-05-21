@@ -202,7 +202,7 @@ mod communication {
                 }
             }
 
-            update_state(&frame, &mut state, true, true, true, true, true);
+            update_state(&frame, &mut state);
 
             tx_data.send(state.clone())?;
 

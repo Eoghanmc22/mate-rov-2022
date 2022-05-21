@@ -23,8 +23,8 @@ pub struct RobotState {
     pub first_read: bool
 }
 
-pub fn update_state(frame: &Frame, state: &mut RobotState, gyro: bool, tilt: bool, yaw: bool, gravity: bool, acceleration: bool) {
-    let a_a = 0.95;
+pub fn update_state(frame: &Frame, state: &mut RobotState) {
+    let a_a = 0.98;
     let a_m = 0.95;
 
     let duration = frame.total_duration.as_secs_f32();

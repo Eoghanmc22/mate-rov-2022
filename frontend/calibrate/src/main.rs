@@ -18,7 +18,7 @@ fn main() {
 
         calibrate_gyro(&frame, &mut gyro_data, counter);
 
-        state::update_state(&frame, &mut state, true, true, true, true, true);
+        state::update_state(&frame, &mut state);
 
         //calibrate_local_accel(&frame, &mut local_accel, counter);
         Ok(())
