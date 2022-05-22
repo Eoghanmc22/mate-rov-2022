@@ -12,8 +12,8 @@ pub fn integrate_gyro(state: &mut RobotState, duration: f32) {
 //https://stanford.edu/class/ee267/lectures/lecture10.pdf
 pub fn tilt_correction(state: &mut RobotState, a_a: f32) {
     let world_acceleration = state.angle * state.acceleration;
-    let v = world_acceleration.normalize();
-    let tilt_correction = Quat::from_axis_angle(v.cross(vec3(0.0, 0.0, 1.0)).normalize(), v.z.acos() * (1.0 - a_a));
+    let v = world_acceleration.normalize_or_zero();
+    let tilt_correction = Quat::from_axis_angle(v.cross(vec3(0.0, 0.0, 1.0)).normalize_or_zero(), v.z.acos() * (1.0 - a_a));
     state.angle = tilt_correction * state.angle;
     state.acceleration = state.angle * state.acceleration;
 }
