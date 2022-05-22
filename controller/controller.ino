@@ -13,9 +13,8 @@ unsigned int read;
 byte buf[LEN];
 
 void loop() {
-  if (read = nanoSerial.available()) {
-    read = nanoSerial.readBytes(buf, min(read, LEN));
-    Serial.write(buf, read);
+  while (nanoSerial.available()) {
+    Serial.write(nanoSerial.read());
   }
   if (read = Serial.available()) {
     read = Serial.readBytes(buf, min(read, LEN));
