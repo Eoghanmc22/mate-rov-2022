@@ -146,7 +146,7 @@ fn raw_to_frame(accel_x: i16, accel_y: i16, accel_z: i16, gyro_x: i16, gyro_y: i
     let mag_y = mag_y as f32 * MAG_GAIN;
     let mag_z = mag_z as f32 * MAG_GAIN;
 
-    let pressure = (pressure as f32 / 1023.0 - 0.5) / 4.0 * 100.0;
+    let pressure = (pressure as f32 / 1023.0 * 5.0 - 0.5) / 4.0 * 100.0;
 
     Frame {
         acceleration: Vec3::new(accel_x, accel_y, accel_z),
