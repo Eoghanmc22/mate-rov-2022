@@ -1,6 +1,6 @@
 #![feature(never_type)]
 
-use std::io::{BufRead, Read};
+use std::io::{BufRead, ErrorKind, Read};
 use std::thread;
 use std::time::Duration;
 use glam::Vec3;
@@ -46,7 +46,16 @@ pub fn listen_to_port<F: FnMut(Frame) -> anyhow::Result<()>>(port: &str, mut dat
 
         if btr > 0 {
             let buf_end = usize::min(btr + last_end, buf.len());
-            let read = port.read(&mut buf[last_end..buf_end])?;
+            let read = match port.read(&mut buf[last_end..buf_end]) {
+                Ok(read) => { read }
+                Err(err) => {
+                    if err.kind() == ErrorKind::TimedOut {
+                        continue;
+                    } else {
+                        return Err(err.into());
+                    }
+                }
+            };
             let available = read + last_end;
 
             let (frames, removed) = find_frames(&buf[..available]);

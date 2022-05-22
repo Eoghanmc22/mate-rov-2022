@@ -21,7 +21,7 @@ fn main() {
         .add_plugin(UiPlugin)
         .add_plugin(VideoPlugin)
         .add_plugin(RobotPlugin)
-        .add_plugin(LogDiagnosticsPlugin::default())
+        //.add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .run();
 }
