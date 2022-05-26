@@ -2,7 +2,7 @@
 
 use sensor_fusion::state;
 use sensor_fusion::state::RobotState;
-use serial::Frame;
+use serial::frame::IMUFrame;
 
 fn main() -> anyhow::Result<!> {
     let mut gyro_data = (0.0, 0.0, 0.0);
@@ -15,7 +15,7 @@ fn main() -> anyhow::Result<!> {
     };
     let mut counter = 0;
 
-    serial::listen(move |frame| {
+    serial::serial::listen(move |frame| {
         counter += 1;
 
         calibrate_gyro(&frame, &mut gyro_data, counter);
@@ -24,10 +24,10 @@ fn main() -> anyhow::Result<!> {
 
         //calibrate_local_accel(&frame, &mut local_accel, counter);
         Ok(())
-    })
+    }, None)
 }
 
-fn calibrate_gyro(frame: &Frame, data: &mut (f32, f32, f32), counter: usize) {
+fn calibrate_gyro(frame: &IMUFrame, data: &mut (f32, f32, f32), counter: usize) {
     let g = frame.gyro;
 
     data.0 += g.x;
@@ -43,7 +43,7 @@ fn calibrate_gyro(frame: &Frame, data: &mut (f32, f32, f32), counter: usize) {
     }
 }
 
-fn calibrate_local_accel(frame: &Frame, local: &mut (f32, f32, f32), counter: usize) {
+fn calibrate_local_accel(frame: &IMUFrame, local: &mut (f32, f32, f32), counter: usize) {
     let local_accel = frame.acceleration;
 
     local.0 += local_accel.x;

@@ -163,6 +163,9 @@ fn setup_3d(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materi
 fn handle_imu(mut query: Query<&mut Transform, With<IMU>>, mut ev_data: EventReader<DataEvent>) {
     for DataEvent(state) in ev_data.iter() {
         for mut transform in query.iter_mut() {
+            if (1.0 - state.angle.length()).abs() > 0.01 {
+                println!("bad quat");
+            }
             transform.rotation = state.angle;
         }
     }

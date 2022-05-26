@@ -1,6 +1,6 @@
 use std::time::Duration;
 use glam::*;
-use serial::Frame;
+use serial::frame::IMUFrame;
 use crate::fusion::*;
 
 #[derive(Clone, Debug, Default)]
@@ -23,7 +23,7 @@ pub struct RobotState {
     pub first_read: bool
 }
 
-pub fn update_state(frame: &Frame, state: &mut RobotState) {
+pub fn update_state(frame: &IMUFrame, state: &mut RobotState) {
     let a_a = 0.98;
     let a_m = 0.95;
 

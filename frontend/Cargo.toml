@@ -3,5 +3,6 @@ resolver = "2"
 members = [
     "mate-gui",
     "serial",
-    "calibrate"
+    "calibrate",
+    "sensor_fusion"
 ]

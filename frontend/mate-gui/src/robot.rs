@@ -1,7 +1,9 @@
+use std::sync::Arc;
 use std::thread;
 use bevy::prelude::*;
 use crossbeam::channel::{bounded, Receiver, Sender};
 use sensor_fusion::state::RobotState;
+use serial::commands::Command;
 use crate::utils;
 
 pub struct RobotPlugin;
@@ -18,7 +20,7 @@ impl Plugin for RobotPlugin {
     }
 }
 pub struct DataEvent(pub RobotState);
-struct Serial(Receiver<RobotState>, Sender<SerialCommand>);
+struct Serial(Receiver<RobotState>, Sender<SerialNotification>, Arc<Sender<Command>>);
 
 #[derive(Component)]
 pub struct ResetButton;
@@ -54,13 +56,18 @@ pub enum RobotData {
 
 fn serial_monitor(mut commands: Commands) {
     let (tx_data, rx_data) = bounded::<RobotState>(10);
-    let (tx_command, rx_command) = bounded::<SerialCommand>(10);
-    thread::Builder::new()
-        .name("Serial Monitor".to_owned())
-        .spawn(move || utils::error_boundary(|| communication::listen_to_serial(&tx_data, &rx_command)))
-        .unwrap();
+    let (tx_notification, rx_notification) = bounded::<SerialNotification>(10);
+    let (tx_command, rx_command) = bounded::<Command>(10);
+    let tx_command = Arc::new(tx_command);
+    {
+        let tx_command = tx_command.clone();
+        thread::Builder::new()
+            .name("Serial Monitor".to_owned())
+            .spawn(move || utils::error_boundary(|| communication::listen_to_serial(&tx_data, &rx_notification, &rx_command, tx_command.clone())))
+            .unwrap();
+    }
 
-    commands.insert_resource(Serial(rx_data, tx_command));
+    commands.insert_resource(Serial(rx_data, tx_notification, tx_command));
 }
 
 fn handler_data(mut ev_data: EventWriter<DataEvent>, serial: Res<Serial>) {
@@ -72,7 +79,7 @@ fn handler_data(mut ev_data: EventWriter<DataEvent>, serial: Res<Serial>) {
 fn reset_handler(query: Query<&Interaction, (With<ResetButton>, Changed<Interaction>)>, serial: Res<Serial>) {
     for interaction in query.iter() {
         if let Interaction::Clicked = interaction {
-            serial.1.send(SerialCommand::ResetState).unwrap();
+            serial.1.send(SerialNotification::ResetState).unwrap();
         }
     }
 }
@@ -174,24 +181,26 @@ fn update_displays(mut query: Query<(&mut Text, &RobotData)>, mut ev_data: Event
     }
 }
 
-pub enum SerialCommand {
+pub enum SerialNotification {
     ResetState
 }
 
 mod communication {
+    use glam::vec3;
     use sensor_fusion::state::update_state;
+    use serial::commands::Command;
     use super::*;
 
-    pub(super) fn listen_to_serial(tx_data: &Sender<RobotState>, rx_command: &Receiver<SerialCommand>) -> anyhow::Result<!> {
+    pub(super) fn listen_to_serial(tx_data: &Sender<RobotState>, rx_notification: &Receiver<SerialNotification>, rx_command: &Receiver<Command>, tx_command: Arc<Sender<Command>>) -> anyhow::Result<!> {
         let mut state = RobotState {
             first_read: true,
             ..default()
         };
 
-        serial::listen(move |frame| {
-            for command in rx_command.try_iter() {
+        serial::serial::listen(move |frame| {
+            for command in rx_notification.try_iter() {
                 match command {
-                    SerialCommand::ResetState => {
+                    SerialNotification::ResetState => {
                         state.velocity = Default::default();
                         state.position = Default::default();
 
@@ -202,11 +211,13 @@ mod communication {
                 }
             }
 
+            tx_command.send(Command::VelocityUpdate(vec3(32.4, 56.7, 21.3), 0.0))?;
+
             update_state(&frame, &mut state);
 
             tx_data.send(state.clone())?;
 
             Ok(())
-        })
+        }, Some(rx_command))
     }
 }
