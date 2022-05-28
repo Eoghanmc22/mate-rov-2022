@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::thread;
 use bevy::prelude::*;
 use crossbeam::channel::{bounded, Receiver, Sender};
+use common::controller::DownstreamMessage;
 use sensor_fusion::state::RobotState;
-use serial::commands::Command;
 use crate::utils;
 
 pub struct RobotPlugin;
@@ -20,7 +20,7 @@ impl Plugin for RobotPlugin {
     }
 }
 pub struct DataEvent(pub RobotState);
-struct Serial(Receiver<RobotState>, Sender<SerialNotification>, Arc<Sender<Command>>);
+struct Serial(Receiver<RobotState>, Sender<SerialNotification>, Arc<Sender<DownstreamMessage>>);
 
 #[derive(Component)]
 pub struct ResetButton;
@@ -57,7 +57,7 @@ pub enum RobotData {
 fn serial_monitor(mut commands: Commands) {
     let (tx_data, rx_data) = bounded::<RobotState>(10);
     let (tx_notification, rx_notification) = bounded::<SerialNotification>(10);
-    let (tx_command, rx_command) = bounded::<Command>(10);
+    let (tx_command, rx_command) = bounded::<DownstreamMessage>(10);
     let tx_command = Arc::new(tx_command);
     {
         let tx_command = tx_command.clone();
@@ -186,36 +186,33 @@ pub enum SerialNotification {
 }
 
 mod communication {
-    use glam::vec3;
-    use sensor_fusion::state::update_state;
-    use serial::commands::Command;
+    use bevy::utils::Instant;
+    use common::controller::DownstreamMessage;
+    use sensor_fusion::state::handle_message;
     use super::*;
 
-    pub(super) fn listen_to_serial(tx_data: &Sender<RobotState>, rx_notification: &Receiver<SerialNotification>, rx_command: &Receiver<Command>, tx_command: Arc<Sender<Command>>) -> anyhow::Result<!> {
-        let mut state = RobotState {
-            first_read: true,
-            ..default()
-        };
+    pub(super) fn listen_to_serial(tx_data: &Sender<RobotState>, rx_notification: &Receiver<SerialNotification>, rx_command: &Receiver<DownstreamMessage>, tx_command: Arc<Sender<DownstreamMessage>>) -> anyhow::Result<!> {
+        let mut state = RobotState::default();
+        state.reset();
 
-        serial::serial::listen(move |frame| {
+        let start = Instant::now();
+        let mut messages = 0;
+
+        serial::listen(move |message| {
             for command in rx_notification.try_iter() {
                 match command {
                     SerialNotification::ResetState => {
-                        state.velocity = Default::default();
-                        state.position = Default::default();
-
-                        state.angle = Default::default();
-
-                        state.first_read = true;
+                        state.reset();
                     }
                 }
             }
 
-            tx_command.send(Command::VelocityUpdate(vec3(32.4, 56.7, 21.3), 0.0))?;
+            handle_message(&message, &mut state, |state| {
+                Ok(tx_data.send(state.clone())?)
+            })?;
 
-            update_state(&frame, &mut state);
-
-            tx_data.send(state.clone())?;
+            messages += 1;
+            //println!("mps: {}", messages as f64 / start.elapsed().as_secs_f64());
 
             Ok(())
         }, Some(rx_command))

@@ -61,5 +61,6 @@ void loop() {
   }
 
   Serial.print(" E");
-  Serial.println(millis() - startTime);
+  Serial.print(millis() - startTime);
+  Serial.print('\n');
 }

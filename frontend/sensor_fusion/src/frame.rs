@@ -1,6 +1,5 @@
 use glam::Vec3;
 use std::time::Duration;
-use std::io::BufRead;
 
 #[derive(Debug)]
 pub struct IMUFrame {
@@ -11,26 +10,6 @@ pub struct IMUFrame {
 
     pub collection_duration: Duration,
     pub total_duration: Duration
-}
-
-const IMU_MESSAGE : &str = "A";
-
-pub fn process_frame<F: FnMut(IMUFrame) -> anyhow::Result<()>>(frame: &str, data_callback: &mut F)  -> anyhow::Result<()> {
-    if frame.len() > 0 {
-        match &frame[0..1] {
-            IMU_MESSAGE => {
-                if let Some(frame) = decode_imu_frame(frame.trim()) {
-                    (data_callback)(frame)?;
-                } else {
-                    eprintln!("Dropped frame: {}", frame);
-                }
-            }
-            _ => {
-                println!("Bad frame: {}", frame)
-            }
-        }
-    }
-    Ok(())
 }
 
 pub fn decode_imu_frame(frame: &str) -> Option<IMUFrame> {

@@ -1,6 +1,8 @@
 use std::time::Duration;
 use glam::*;
-use serial::frame::IMUFrame;
+use common::controller::UpstreamMessage;
+use crate::frame;
+use crate::frame::{decode_imu_frame, IMUFrame};
 use crate::fusion::*;
 
 #[derive(Clone, Debug, Default)]
@@ -20,7 +22,58 @@ pub struct RobotState {
     pub collection_duration: Duration,
     pub total_duration: Duration,
 
-    pub first_read: bool
+    first_read: bool,
+
+    frame_buffer: Option<Vec<u8>>
+}
+
+impl RobotState {
+    pub fn reset(&mut self) {
+        *self = Default::default();
+        self.first_read = true;
+    }
+}
+
+pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &UpstreamMessage, state: &mut RobotState, imu_notification: F) -> anyhow::Result<()> {
+    match message {
+        UpstreamMessage::IMUStream(next_byte) => {
+            let mut frame_buffer = state.frame_buffer.take().unwrap_or(vec![]);
+            frame_buffer.push(*next_byte);
+
+            if let Some(start) = frame_buffer.iter().position(|&byte| byte == b'A') {
+                if let Some(len) = frame_buffer[start..].iter().rposition(|&byte| byte == b'\n') {
+                    for frame in frame_buffer[start..start + len].split(|&byte| byte == b'\n').flat_map(core::str::from_utf8) {
+                        println!("{}", frame);
+                        if let Some(frame) = decode_imu_frame(frame.trim()) {
+                            update_state(&frame, state);
+                            (imu_notification)(state)?;
+                        }
+                    }
+
+                    frame_buffer.copy_within(start + len.., 0);
+                    frame_buffer.truncate(frame_buffer.len() - (start + len));
+                } else {
+                    frame_buffer.copy_within(start.., 0);
+                    frame_buffer.truncate(frame_buffer.len() - start);
+                }
+            } else {
+                frame_buffer.clear();
+            }
+
+            state.frame_buffer.replace(frame_buffer);
+        }
+        UpstreamMessage::Log(msg) => {
+            println!("Arduino logged: {}", msg)
+        }
+        UpstreamMessage::Panic(msg) => {
+            println!("Arduino panicked: {}", msg)
+        }
+        UpstreamMessage::Init => {
+            println!("Arduino init")
+        }
+    }
+
+    Ok(())
 }
 
 pub fn update_state(frame: &IMUFrame, state: &mut RobotState) {
