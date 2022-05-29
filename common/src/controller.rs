@@ -19,4 +19,6 @@ pub enum UpstreamMessage<'a> {
     IMUStream(u8),
     Log(&'a str),
     Panic(&'a str),
+    Ack,
+    Bad
 }

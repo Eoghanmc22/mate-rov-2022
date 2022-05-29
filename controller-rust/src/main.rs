@@ -70,6 +70,9 @@ fn main() -> ! {
                 if common::end_of_frame(byte) {
                     if let Ok(message) = common::read(&mut rx_buffer) {
                         state.update(message);
+                        write_message(&UpstreamMessage::Ack, &mut usb, &mut out_buffer);
+                    } else {
+                        write_message(&UpstreamMessage::Bad, &mut usb, &mut out_buffer);
                     }
                     rx_buffer.clear();
                 }

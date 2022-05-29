@@ -42,11 +42,16 @@ pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &Upstre
 
             if let Some(start) = frame_buffer.iter().position(|&byte| byte == b'A') {
                 if let Some(len) = frame_buffer[start..].iter().rposition(|&byte| byte == b'\n') {
-                    for frame in frame_buffer[start..start + len].split(|&byte| byte == b'\n').flat_map(core::str::from_utf8) {
-                        println!("{}", frame);
-                        if let Some(frame) = decode_imu_frame(frame.trim()) {
-                            update_state(&frame, state);
-                            (imu_notification)(state)?;
+                    for frame in frame_buffer[start..start + len].split(|&byte| byte == b'\n') {
+                        if let Ok(frame) = core::str::from_utf8(frame) {
+                            if let Some(frame) = decode_imu_frame(frame.trim()) {
+                                update_state(&frame, state);
+                                (imu_notification)(state)?;
+                            } else {
+                                println!("invalid frame")
+                            }
+                        } else {
+                            println!("invalid frame")
                         }
                     }
 
@@ -70,6 +75,12 @@ pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &Upstre
         }
         UpstreamMessage::Init => {
             println!("Arduino init")
+        }
+        UpstreamMessage::Ack => {
+            println!("ack")
+        }
+        UpstreamMessage::Bad => {
+            println!("bad")
         }
     }
 
