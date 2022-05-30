@@ -24,7 +24,13 @@ pub struct RobotState {
 
     first_read: bool,
 
-    frame_buffer: Option<Vec<u8>>
+    frame_buffer: Option<Vec<u8>>,
+
+    imu_valids: u64,
+    imu_errors: u64,
+
+    data_valids: u64,
+    data_errors: u64,
 }
 
 impl RobotState {
@@ -35,7 +41,7 @@ impl RobotState {
 }
 
 pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &UpstreamMessage, state: &mut RobotState, imu_notification: F) -> anyhow::Result<()> {
-    /*match message {
+    match message {
         UpstreamMessage::IMUStream(byte) => {
             let mut frame_buffer = state.frame_buffer.take().unwrap_or(vec![]);
             frame_buffer.push(*byte);
@@ -47,11 +53,15 @@ pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &Upstre
                             if let Some(frame) = decode_imu_frame(frame.trim()) {
                                 update_state(&frame, state);
                                 (imu_notification)(state)?;
+
+                                state.imu_valids += 1;
                             } else {
-                                println!("invalid frame: {}", frame)
+                                state.imu_errors += 1;
+                                println!("invalid frame: {}, ratio: {}", frame, state.imu_errors as f64 / (state.imu_valids + state.imu_errors) as f64);
                             }
                         } else {
-                            println!("invalid frame")
+                            state.imu_errors += 1;
+                            println!("invalid frame, ratio: {}", state.imu_errors as f64 / (state.imu_valids + state.imu_errors) as f64);
                         }
                     }
 
@@ -77,12 +87,19 @@ pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &Upstre
             println!("Arduino init")
         }
         UpstreamMessage::Ack => {
-            //println!("ack")
+            println!("ack");
+
+            state.data_valids += 1;
         }
-        UpstreamMessage::Bad => {
-            //println!("bad")
+        UpstreamMessage::BadP(com_error) => {
+            state.data_errors += 1;
+            println!("badp: {:?}, ratio: {}", com_error, state.data_errors as f64 / (state.data_valids + state.data_errors) as f64);
         }
-    }*/
+        UpstreamMessage::BadO => {
+            state.data_errors += 1;
+            println!("bado, ratio: {}", state.data_errors as f64 / (state.data_valids + state.data_errors) as f64);
+        }
+    }
 
     Ok(())
 }

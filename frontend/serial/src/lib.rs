@@ -3,6 +3,8 @@
 use serialport::{ClearBuffer, SerialPort, SerialPortInfo, SerialPortType};
 use std::io::{Read, Write};
 use std::{io, thread};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use anyhow::bail;
 use crossbeam::channel::Receiver;
@@ -32,28 +34,40 @@ pub fn listen<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + 'static>(
 pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + 'static>(port: &str, mut data_callback: F, commands: Option<Receiver<DownstreamMessage>>) -> anyhow::Result<!> {
     let mut port = serialport::new(port, common::BAUD_RATE_CTRL)
         .timeout(Duration::from_millis(1))
-        .open()
+        .open_native()
         .expect("Failed to open port");
 
-    port.clear(ClearBuffer::All)?;
+    //dont do this?
+    //port.clear(ClearBuffer::All)?;
 
-    let mut buf = [0; 1000];
+    let mut buf_read = [0; 4098];
+    let mut buf_write = [0; 4098];
     let mut last_end = 0;
 
+    let should_write = Arc::new(AtomicBool::new(false));
+
     if let Some(ref commands) = commands {
-        if let Ok(mut other) = port.try_clone() {
-            let reader = thread::spawn(move || {
-                loop {
-                    do_read(&mut buf, &mut last_end, &mut data_callback, &mut port)?;
-                }
-            });
+        if let Ok(mut other) = port.try_clone_native() {
+            let reader = {
+                let should_write = should_write.clone();
+
+                thread::spawn(move || {
+                    loop {
+                        do_read(&mut buf_read, &mut last_end, &mut data_callback, &mut port, &should_write)?;
+                    }
+                })
+            };
 
             let commands = commands.to_owned();
             let writer = thread::spawn(move || {
                 let mut last_write = Instant::now();
 
                 loop {
-                    do_write(&commands, &mut other, &mut last_write)?;
+                    if should_write.load(Ordering::Relaxed) {
+                        do_write(&mut buf_write, &commands, &mut other, &mut last_write)?;
+                    } else {
+                        thread::sleep(Duration::from_millis(1));
+                    }
                 }
             });
 
@@ -75,15 +89,17 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + '
     let mut last_write = Instant::now();
 
     loop {
-        do_read(&mut buf, &mut last_end, &mut data_callback, &mut port)?;
+        do_read(&mut buf_read, &mut last_end, &mut data_callback, &mut port, &should_write)?;
 
         if let Some(ref commands) = commands {
-            do_write(commands, &mut port, &mut last_write)?;
+            if should_write.load(Ordering::Relaxed) {
+                do_write(&mut buf_write, commands, &mut port, &mut last_write)?;
+            }
         }
     }
 }
 
-fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], last_end: &mut usize, data_callback: &mut F, port: &mut Box<dyn SerialPort>) -> anyhow::Result<()> {
+fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], last_end: &mut usize, data_callback: &mut F, port: &mut impl SerialPort, should_write: &AtomicBool) -> anyhow::Result<()> {
     match port.read(&mut buffer[*last_end..]) {
         Ok(read) => {
             //println!("read: {}", read);
@@ -95,8 +111,10 @@ fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], l
             for frame in frames {
                 if common::end_of_frame(frame.last().unwrap()) {
                     if let Ok(message) = common::read(frame) {
-                        println!("{:#?}", message);
+                        //println!("{:#?}", message);
                         (data_callback)(message)?;
+
+                        should_write.store(true, Ordering::Relaxed);
                     }
                 } else {
                     removed = frame.len();
@@ -107,23 +125,21 @@ fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], l
             buffer.copy_within(available - removed..available, 0);
             *last_end = removed;
         }
-        Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
-            //println!("TimedOut read");
+        Err(e) => {
+            assert_eq!(e.kind(), io::ErrorKind::TimedOut);
         }
-        Err(e) => return Err(e.into())
     }
 
     Ok(())
 }
 
 
-const MIN_WRITE_DELAY: f64 = 1.0/1000.0;
+const MIN_WRITE_DELAY: f64 = 5.0/1000.0;
 
-fn do_write(command_stream: &Receiver<DownstreamMessage>, port: &mut Box<dyn SerialPort>, last_write: &mut Instant) -> anyhow::Result<()> {
+fn do_write(buffer: &mut [u8], command_stream: &Receiver<DownstreamMessage>, port: &mut impl SerialPort, last_write: &mut Instant) -> anyhow::Result<()> {
     if last_write.elapsed().as_secs_f64() > MIN_WRITE_DELAY {
-        for command in command_stream.try_iter().take(3) {
-            let mut out = [0; 250];
-            if let Ok(buffer) = common::write(&command, &mut out) {
+        for command in command_stream.try_iter().take(1) {
+            if let Ok(buffer) = common::write(&command, buffer) {
                 write_all(buffer, port)?;
             }
         }
@@ -134,7 +150,7 @@ fn do_write(command_stream: &Receiver<DownstreamMessage>, port: &mut Box<dyn Ser
     Ok(())
 }
 
-fn write_all(mut buf: &[u8], port: &mut Box<dyn SerialPort>) -> io::Result<()> {
+fn write_all(mut buf: &[u8], port: &mut impl SerialPort) -> io::Result<()> {
     while !buf.is_empty() {
         match port.write(buf) {
             Ok(0) => {
@@ -152,5 +168,6 @@ fn write_all(mut buf: &[u8], port: &mut Box<dyn SerialPort>) -> io::Result<()> {
             Err(e) => return Err(e),
         }
     }
+    port.flush()?;
     Ok(())
 }

@@ -200,15 +200,15 @@ mod communication {
         let tx_command = tx_command.clone();
         thread::spawn(move || {
             loop {
-                tx_command.send(DownstreamMessage::Msg).unwrap();
-                /*tx_command.send(DownstreamMessage::VelocityDataMessage(VelocityData {
+                //tx_command.send(DownstreamMessage::Msg).unwrap();
+                tx_command.send(DownstreamMessage::VelocityDataMessage(VelocityData {
                     forwards_left: 3.0,
                     forwards_right: 2.0,
                     strafing: 1.0,
                     up: 0.5
-                })).unwrap();*/
+                })).unwrap();
                 //println!("send");
-                //thread::sleep(Duration::from_millis(10));
+                //thread::sleep(Duration::from_millis(100));
             }
         });
 
@@ -226,7 +226,7 @@ mod communication {
             })?;
 
             messages += 1;
-            println!("mps: {}", messages as f64 / start.elapsed().as_secs_f64());
+            //println!("mps: {}", messages as f64 / start.elapsed().as_secs_f64());
 
             Ok(())
         }, Some(rx_command.clone()))

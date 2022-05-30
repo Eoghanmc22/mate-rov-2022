@@ -22,6 +22,7 @@ use core::sync::atomic::Ordering;
 use arduino_hal::{default_serial, Peripherals, pins, Usart};
 use arduino_hal::hal::port::{PD2, PD3, PE0, PE1};
 use arduino_hal::hal::usart::Event;
+use arduino_hal::hal::wdt;
 use arduino_hal::port::mode::{Input, Output};
 use arduino_hal::port::Pin;
 use arduino_hal::usart::UsartReader;
@@ -69,12 +70,10 @@ fn main() -> ! {
     let mut nano = Usart::new(dp.USART1, pins.d19, pins.d18.into_output(), common::BAUD_RATE_NANO.into_baudrate());
 
     usb.listen(Event::RxComplete);
-    //nano.listen(Event::RxComplete);
+    nano.listen(Event::RxComplete);
 
     let (nano_reader, _) = nano.split();
     let (usb_reader, mut usb_writer) = usb.split();
-
-    write_message(&UpstreamMessage::Init, &mut usb_writer);
 
     interrupt::free(|cs| {
         USB_SERIAL_RX.borrow(cs).borrow_mut().replace(usb_reader);
@@ -94,6 +93,10 @@ fn main() -> ! {
 
     let mut state = State::default();
 
+    write_message(&UpstreamMessage::Init, &mut usb_writer);
+
+    let mut watchdog = wdt::Wdt::new(dp.WDT, &dp.CPU.mcusr);
+    watchdog.start(wdt::Timeout::Ms16).unwrap();
     loop {
         // process data from computer
         let byte = interrupt::free(|cs| {
@@ -123,7 +126,7 @@ fn main() -> ! {
             }
         }
 
-        /*// forward data from nano
+        // forward data from nano
         // maybe optimize this by using a buffer?
         let byte = interrupt::free(|cs| {
             let mut nano_consumer = NANO_CONSUMER.borrow(cs).borrow_mut();
@@ -132,7 +135,9 @@ fn main() -> ! {
 
         if let Some(byte) = byte {
             write_message(&UpstreamMessage::IMUStream(byte), &mut usb_writer);
-        }*/
+        }
+
+        watchdog.feed();
     }
 }
 
@@ -171,11 +176,7 @@ fn write_message(message: &UpstreamMessage, serial: &mut impl Write<u8>) {
     let buffer = unsafe { &mut OUT_BUFFER };
     if let Ok(buffer) = common::write(message, buffer) {
         for &mut byte in buffer {
-            let result = block!(serial.write(byte));
-
-            if result.is_err() {
-                break;
-            }
+            let _ = block!(serial.write(byte));
         }
     }
 }
