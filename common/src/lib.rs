@@ -8,7 +8,7 @@ pub mod controller;
 pub mod crc;
 
 // other vals can have less error?
-pub const BAUD_RATE_PC : u32 = 1000000;//921600;//460800;//115200;
+pub const BAUD_RATE_PC : u32 = 1000000;
 pub const BAUD_RATE_NANO : u32 = 57600;
 
 #[derive(Debug)]
@@ -93,6 +93,6 @@ pub fn read<'a, D: Deserialize<'a>>(buffer: &'a mut [u8]) -> Result<D, Communica
     }
 }
 
-pub fn end_of_frame(byte: u8) -> bool {
-    byte == 0x00
+pub fn end_of_frame(byte: &u8) -> bool {
+    *byte == 0x00
 }

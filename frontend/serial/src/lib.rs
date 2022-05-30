@@ -43,14 +43,16 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(port: &st
     loop {
         match port.read(&mut buf[last_end..]) {
             Ok(read) => {
+                //println!("read: {}", read);
                 let available = read + last_end;
                 let frames = buf[..available]
-                    .split_inclusive_mut(|&byte| common::end_of_frame(byte));
+                    .split_inclusive_mut(common::end_of_frame);
 
                 let mut removed = 0;
                 for frame in frames {
-                    if common::end_of_frame(*frame.last().unwrap()) {
+                    if common::end_of_frame(frame.last().unwrap()) {
                         if let Ok(message) = common::read(frame) {
+                            //println!("{:#?}", message);
                             (data_callback)(message)?;
                         }
                     } else {
@@ -62,7 +64,9 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(port: &st
                 buf.copy_within(available - removed..available, 0);
                 last_end = removed;
             }
-            Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {}
+            Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
+                //println!("TimedOut");
+            }
             Err(e) => return Err(e.into())
         }
 
@@ -86,8 +90,11 @@ fn write_all(mut buf: &[u8], port: &mut Box<dyn SerialPort>) -> io::Result<()> {
                     "failed to write whole buffer",
                     ));
             }
-            Ok(n) => buf = &buf[n..],
-            Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {}
+            Ok(n) => {
+                buf = &buf[n..]
+            },
+            Err(ref e) if e.kind() == io::ErrorKind::TimedOut => {
+            }
             Err(e) => return Err(e),
         }
     }

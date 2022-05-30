@@ -36,9 +36,9 @@ impl RobotState {
 
 pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &UpstreamMessage, state: &mut RobotState, imu_notification: F) -> anyhow::Result<()> {
     match message {
-        UpstreamMessage::IMUStream(next_byte) => {
+        UpstreamMessage::IMUStream(byte) => {
             let mut frame_buffer = state.frame_buffer.take().unwrap_or(vec![]);
-            frame_buffer.push(*next_byte);
+            frame_buffer.push(*byte);
 
             if let Some(start) = frame_buffer.iter().position(|&byte| byte == b'A') {
                 if let Some(len) = frame_buffer[start..].iter().rposition(|&byte| byte == b'\n') {
@@ -48,7 +48,7 @@ pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &Upstre
                                 update_state(&frame, state);
                                 (imu_notification)(state)?;
                             } else {
-                                println!("invalid frame")
+                                println!("invalid frame: {}", frame)
                             }
                         } else {
                             println!("invalid frame")
@@ -70,17 +70,17 @@ pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &Upstre
         UpstreamMessage::Log(msg) => {
             println!("Arduino logged: {}", msg)
         }
-        UpstreamMessage::Panic(msg) => {
-            println!("Arduino panicked: {}", msg)
+        UpstreamMessage::Panic => {
+            println!("Arduino panicked")
         }
         UpstreamMessage::Init => {
             println!("Arduino init")
         }
         UpstreamMessage::Ack => {
-            println!("ack")
+            //println!("ack")
         }
         UpstreamMessage::Bad => {
-            println!("bad")
+            //println!("bad")
         }
     }
 

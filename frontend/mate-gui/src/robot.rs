@@ -186,8 +186,8 @@ pub enum SerialNotification {
 }
 
 mod communication {
-    use bevy::utils::Instant;
-    use common::controller::DownstreamMessage;
+    use std::time::{Duration, Instant};
+    use common::controller::{DownstreamMessage, VelocityData};
     use sensor_fusion::state::handle_message;
     use super::*;
 
@@ -197,6 +197,19 @@ mod communication {
 
         let start = Instant::now();
         let mut messages = 0;
+
+        let tx_command = tx_command.clone();
+        thread::spawn(move || {
+            loop {
+                /*tx_command.send(DownstreamMessage::VelocityDataMessage(VelocityData {
+                    forwards_left: 3.0,
+                    forwards_right: 2.0,
+                    strafing: 1.0,
+                    up: 0.5
+                })).unwrap();*/
+                thread::sleep(Duration::from_millis(100));
+            }
+        });
 
         serial::listen(move |message| {
             for command in rx_notification.try_iter() {
