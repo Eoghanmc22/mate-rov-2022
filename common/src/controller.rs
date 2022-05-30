@@ -1,8 +1,10 @@
 use serde::{Serialize, Deserialize};
+use crate::CommunicationError;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum DownstreamMessage {
-    VelocityDataMessage(VelocityData)
+    VelocityDataMessage(VelocityData),
+    Msg
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -20,5 +22,6 @@ pub enum UpstreamMessage<'a> {
     Log(&'a str),
     Panic,
     Ack,
-    Bad
+    BadO,
+    BadP(CommunicationError)
 }

@@ -20,7 +20,7 @@ impl Plugin for RobotPlugin {
     }
 }
 pub struct DataEvent(pub RobotState);
-struct Serial(Receiver<RobotState>, Sender<SerialNotification>, Arc<Sender<DownstreamMessage>>);
+struct Serial(Receiver<RobotState>, Sender<SerialNotification>, Sender<DownstreamMessage>);
 
 #[derive(Component)]
 pub struct ResetButton;
@@ -58,12 +58,11 @@ fn serial_monitor(mut commands: Commands) {
     let (tx_data, rx_data) = bounded::<RobotState>(10);
     let (tx_notification, rx_notification) = bounded::<SerialNotification>(10);
     let (tx_command, rx_command) = bounded::<DownstreamMessage>(10);
-    let tx_command = Arc::new(tx_command);
     {
         let tx_command = tx_command.clone();
         thread::Builder::new()
             .name("Serial Monitor".to_owned())
-            .spawn(move || utils::error_boundary(|| communication::listen_to_serial(&tx_data, &rx_notification, &rx_command, tx_command.clone())))
+            .spawn(move || utils::error_boundary(|| communication::listen_to_serial(tx_data.clone(), rx_notification.clone(), rx_command.clone(), tx_command.clone())))
             .unwrap();
     }
 
@@ -191,7 +190,7 @@ mod communication {
     use sensor_fusion::state::handle_message;
     use super::*;
 
-    pub(super) fn listen_to_serial(tx_data: &Sender<RobotState>, rx_notification: &Receiver<SerialNotification>, rx_command: &Receiver<DownstreamMessage>, tx_command: Arc<Sender<DownstreamMessage>>) -> anyhow::Result<!> {
+    pub(super) fn listen_to_serial(tx_data: Sender<RobotState>, rx_notification: Receiver<SerialNotification>, rx_command: Receiver<DownstreamMessage>, tx_command: Sender<DownstreamMessage>) -> anyhow::Result<!> {
         let mut state = RobotState::default();
         state.reset();
 
@@ -201,13 +200,15 @@ mod communication {
         let tx_command = tx_command.clone();
         thread::spawn(move || {
             loop {
+                tx_command.send(DownstreamMessage::Msg).unwrap();
                 /*tx_command.send(DownstreamMessage::VelocityDataMessage(VelocityData {
                     forwards_left: 3.0,
                     forwards_right: 2.0,
                     strafing: 1.0,
                     up: 0.5
                 })).unwrap();*/
-                thread::sleep(Duration::from_millis(100));
+                //println!("send");
+                //thread::sleep(Duration::from_millis(10));
             }
         });
 
@@ -225,9 +226,9 @@ mod communication {
             })?;
 
             messages += 1;
-            //println!("mps: {}", messages as f64 / start.elapsed().as_secs_f64());
+            println!("mps: {}", messages as f64 / start.elapsed().as_secs_f64());
 
             Ok(())
-        }, Some(rx_command))
+        }, Some(rx_command.clone()))
     }
 }

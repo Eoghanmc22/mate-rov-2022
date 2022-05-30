@@ -18,32 +18,32 @@ use common::controller::{DownstreamMessage, UpstreamMessage};
 use crate::state::State;
 
 use core::panic::PanicInfo;
-use core::sync::atomic::{AtomicBool, Ordering};
-use arduino_hal::hal::wdt;
+use core::sync::atomic::Ordering;
 use arduino_hal::{default_serial, Peripherals, pins, Usart};
 use arduino_hal::hal::port::{PD2, PD3, PE0, PE1};
 use arduino_hal::hal::usart::Event;
 use arduino_hal::port::mode::{Input, Output};
 use arduino_hal::port::Pin;
-use arduino_hal::usart::{UsartReader, UsartWriter};
-use avr_device::asm::sleep;
+use arduino_hal::usart::UsartReader;
 use avr_device::atmega2560::{USART0, USART1};
 use avr_device::interrupt;
 use avr_device::interrupt::Mutex;
 use crate::spsc::{Consumer, Producer, Queue};
+use ufmt::uwriteln;
 
 #[inline(never)]
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
     interrupt::disable();
 
     let dp = unsafe { Peripherals::steal() };
     let pins = pins!(dp);
-    let mut usb = default_serial!(dp, pins, common::BAUD_RATE_PC);
+    let mut usb = default_serial!(dp, pins, common::BAUD_RATE_CTRL);
 
-    let _ = usb.write_str("panic");
+    let location = info.location().unwrap();
 
     loop {
+        uwriteln!(usb, "Panicked at {}:{} in {}", location.line(), location.column(), location.file());
         atomic::compiler_fence(Ordering::SeqCst);
     }
 }
@@ -65,11 +65,11 @@ fn main() -> ! {
 
     let dp = Peripherals::take().unwrap();
     let pins = pins!(dp);
-    let mut usb = default_serial!(dp, pins, common::BAUD_RATE_PC);
+    let mut usb = default_serial!(dp, pins, common::BAUD_RATE_CTRL);
     let mut nano = Usart::new(dp.USART1, pins.d19, pins.d18.into_output(), common::BAUD_RATE_NANO.into_baudrate());
 
-    //usb.listen(Event::RxComplete);
-    nano.listen(Event::RxComplete);
+    usb.listen(Event::RxComplete);
+    //nano.listen(Event::RxComplete);
 
     let (nano_reader, _) = nano.split();
     let (usb_reader, mut usb_writer) = usb.split();
@@ -95,7 +95,7 @@ fn main() -> ! {
     let mut state = State::default();
 
     loop {
-        /*// process data from computer
+        // process data from computer
         let byte = interrupt::free(|cs| {
             let mut usb_consumer = USB_CONSUMER.borrow(cs).borrow_mut();
             usb_consumer.as_mut().unwrap().dequeue()
@@ -104,23 +104,26 @@ fn main() -> ! {
         if let Some(byte) = byte {
             if let Ok(()) = usb_buffer.push(byte) {
                 if common::end_of_frame(&byte) {
-                    if let Ok(message) = common::read(&mut usb_buffer) {
-                        state.update(message);
-                        write_message(&UpstreamMessage::Ack, &mut usb_writer);
-                    } else {
-                        // data was not received correctly
-                        write_message(&UpstreamMessage::Bad, &mut usb_writer);
-                        usb_buffer.clear();
+                    match common::read(&mut usb_buffer) {
+                        Ok(message) =>  {
+                            state.update(message);
+                            write_message(&UpstreamMessage::Ack, &mut usb_writer);
+                        }
+                        Err(e) => {
+                            // data was not received correctly
+                            write_message(&UpstreamMessage::BadP(e), &mut usb_writer);
+                        }
                     }
+                    usb_buffer.clear();
                 }
             } else {
                 // data was not received correctly
-                write_message(&UpstreamMessage::Bad, &mut usb_writer);
+                write_message(&UpstreamMessage::BadO, &mut usb_writer);
                 usb_buffer.clear();
             }
-        }*/
+        }
 
-        // forward data from nano
+        /*// forward data from nano
         // maybe optimize this by using a buffer?
         let byte = interrupt::free(|cs| {
             let mut nano_consumer = NANO_CONSUMER.borrow(cs).borrow_mut();
@@ -129,7 +132,7 @@ fn main() -> ! {
 
         if let Some(byte) = byte {
             write_message(&UpstreamMessage::IMUStream(byte), &mut usb_writer);
-        }
+        }*/
     }
 }
 
@@ -143,7 +146,7 @@ fn USART0_RX() {
         let mut usb_producer = USB_PRODUCER.borrow(cs).borrow_mut();
 
         while let Ok(byte) = usb.as_mut().unwrap().read() {
-            let _ = usb_producer.as_mut().unwrap().enqueue(byte);
+            let _ = usb_producer.as_mut().unwrap().enqueue(byte).unwrap();
         }
     });
 }
@@ -156,7 +159,7 @@ fn USART1_RX() {
         let mut nano_producer = NANO_PRODUCER.borrow(cs).borrow_mut();
 
         while let Ok(byte) = nano_rx.as_mut().unwrap().read() {
-            let _ = nano_producer.as_mut().unwrap().enqueue(byte);
+            let _ = nano_producer.as_mut().unwrap().enqueue(byte).unwrap();
         }
     });
 }

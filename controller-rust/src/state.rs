@@ -13,6 +13,7 @@ impl State {
             DownstreamMessage::VelocityDataMessage(velocity) => {
                 self.motor_sp_pc = velocity
             }
+            _ => {}
         }
     }
 }

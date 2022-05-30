@@ -35,7 +35,7 @@ impl RobotState {
 }
 
 pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &UpstreamMessage, state: &mut RobotState, imu_notification: F) -> anyhow::Result<()> {
-    match message {
+    /*match message {
         UpstreamMessage::IMUStream(byte) => {
             let mut frame_buffer = state.frame_buffer.take().unwrap_or(vec![]);
             frame_buffer.push(*byte);
@@ -82,7 +82,7 @@ pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &Upstre
         UpstreamMessage::Bad => {
             //println!("bad")
         }
-    }
+    }*/
 
     Ok(())
 }

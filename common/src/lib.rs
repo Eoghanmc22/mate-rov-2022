@@ -8,10 +8,10 @@ pub mod controller;
 pub mod crc;
 
 // other vals can have less error?
-pub const BAUD_RATE_PC : u32 = 1000000;
+pub const BAUD_RATE_CTRL : u32 = 1000000;
 pub const BAUD_RATE_NANO : u32 = 57600;
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum CommunicationError {
     BadData,
     BadCheckSum(u16, u16),
@@ -53,8 +53,10 @@ mod test {
         let mut buffer : [u8; 200] = unsafe { MaybeUninit::uninit().assume_init() };
 
         let command = DownstreamMessage::VelocityDataMessage(VelocityData {
-            direction: (1.0, 2.0, 3.0),
-            yaw_split: 0.5
+            forwards_left: 4.0,
+            forwards_right: 3.0,
+            strafing: 2.0,
+            up: 1.0
         });
 
         let buffer2 = write(&command, &mut buffer).unwrap();
@@ -62,10 +64,10 @@ mod test {
 
         match received {
             DownstreamMessage::VelocityDataMessage(data) => {
-                assert_eq!(data.direction.0, 1.0);
-                assert_eq!(data.direction.1, 2.0);
-                assert_eq!(data.direction.2, 3.0);
-                assert_eq!(data.yaw_split, 0.5);
+                assert_eq!(data.forwards_left, 4.0);
+                assert_eq!(data.forwards_right, 3.0);
+                assert_eq!(data.strafing, 2.0);
+                assert_eq!(data.up, 1.0);
             }
             _ => { panic!() }
         }
