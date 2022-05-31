@@ -110,11 +110,16 @@ fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], l
             let mut removed = 0;
             for frame in frames {
                 if common::end_of_frame(frame.last().unwrap()) {
-                    if let Ok(message) = common::read(frame) {
-                        //println!("{:#?}", message);
-                        (data_callback)(message)?;
+                    match common::read(frame) {
+                        Ok(message) => {
+                            //println!("{:#?}", message);
+                            (data_callback)(message)?;
 
-                        should_write.store(true, Ordering::Relaxed);
+                            should_write.store(true, Ordering::Relaxed);
+                        }
+                        Err(com_error) => {
+                            println!("read error: {:?}", com_error);
+                        }
                     }
                 } else {
                     removed = frame.len();
