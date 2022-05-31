@@ -108,8 +108,11 @@ fn main() -> ! {
         // process data from computer
         loop {
             let byte = interrupt::free(|cs| {
-                let mut usb_consumer = USB_READ_CONSUMER.borrow(cs).borrow_mut();
-                usb_consumer.as_mut().unwrap().dequeue()
+                if let Some(ref mut usb_consumer) = USB_READ_CONSUMER.borrow(cs).borrow_mut().deref_mut() {
+                    usb_consumer.dequeue()
+                } else {
+                    None
+                }
             });
 
             if let Some(byte) = byte {
@@ -138,21 +141,21 @@ fn main() -> ! {
         }
 
         // forward data from nano
-        interrupt::free(|cs| {
-            if let Some(ref mut nano_consumer) = NANO_CONSUMER.borrow(cs).borrow_mut().deref_mut() {
-                while !nano_buffer.is_full() {
-                    if let Some(&byte) = nano_consumer.peek() {
-                        if let Ok(()) = nano_buffer.push(byte) {
-                            let _ = nano_consumer.dequeue();
-                        } else {
-                            break;
-                        }
-                    } else {
-                        break;
+        while !nano_buffer.is_full() {
+            let done = interrupt::free(|cs| {
+                if let Some(ref mut nano_consumer) = NANO_CONSUMER.borrow(cs).borrow_mut().deref_mut() {
+                    if let Some(byte) = nano_consumer.dequeue() {
+                        nano_buffer.push(byte).unwrap();
+                        return false;
                     }
                 }
+
+                true
+            });
+            if done {
+                break;
             }
-        });
+        }
 
         if !nano_buffer.is_empty() {
             write_message(&UpstreamMessage::IMUStream(&nano_buffer));
@@ -216,6 +219,7 @@ fn write_message(message: &UpstreamMessage) {
         for &mut byte in buffer {
             interrupt::free(|cs| {
                 if let Some(ref mut usb_producer) = USB_WRITE_PRODUCER.borrow(cs).borrow_mut().deref_mut() {
+                    //todo remove unwrap
                     let _ = usb_producer.enqueue(byte).unwrap();
                 }
             });
