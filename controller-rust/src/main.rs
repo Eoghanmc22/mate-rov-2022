@@ -227,14 +227,17 @@ fn write_message(message: &UpstreamMessage) {
 
     let buffer = unsafe { &mut OUT_BUFFER };
     if let Ok(buffer) = common::write(message, buffer) {
-        interrupt::free(|cs| {
-            if let Some(ref mut usb_producer) = USB_WRITE_PRODUCER.borrow(cs).borrow_mut().deref_mut() {
-                if let Some(ref mut serial) = USB_SERIAL.borrow(cs).borrow_mut().deref_mut() {
-                    for &mut byte in buffer {
-                        let _ = usb_producer.enqueue(byte).unwrap();
-                    }
-                    serial.listen(Event::DataRegisterEmpty);
+        for &mut byte in buffer {
+            interrupt::free(|cs| {
+                if let Some(ref mut usb_producer) = USB_WRITE_PRODUCER.borrow(cs).borrow_mut().deref_mut() {
+                    let _ = usb_producer.enqueue(byte).unwrap();
                 }
+            });
+        }
+
+        interrupt::free(|cs| {
+            if let Some(ref mut serial) = USB_SERIAL.borrow(cs).borrow_mut().deref_mut() {
+                serial.listen(Event::DataRegisterEmpty);
             }
         });
     }
