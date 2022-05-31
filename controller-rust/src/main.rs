@@ -68,14 +68,14 @@ static USB_WRITE_CONSUMER: Mutex<RefCell<Option<Consumer<u8, 256>>>> = Mutex::ne
 #[arduino_hal::entry]
 fn main() -> ! {
     let mut usb_buffer = Vec::<u8, { mem::size_of::<DownstreamMessage>() + 5 }>::new();
-    let mut nano_buffer = Vec::<u8, 16>::new();
+    let mut nano_buffer = Vec::<u8, 32>::new();
 
     let dp = Peripherals::take().unwrap();
     let pins = pins!(dp);
     let mut usb = default_serial!(dp, pins, common::BAUD_RATE_CTRL);
     let mut nano = Usart::new(dp.USART1, pins.d19, pins.d18.into_output(), common::BAUD_RATE_NANO.into_baudrate());
 
-    //usb.listen(Event::RxComplete);
+    usb.listen(Event::RxComplete);
     nano.listen(Event::RxComplete);
 
     let (nano_reader, _) = nano.split();
@@ -106,52 +106,38 @@ fn main() -> ! {
 
     loop {
         // process data from computer
-        let byte = interrupt::free(|cs| {
-            let mut usb_consumer = USB_READ_CONSUMER.borrow(cs).borrow_mut();
-            usb_consumer.as_mut().unwrap().dequeue()
-        });
+        loop {
+            let byte = interrupt::free(|cs| {
+                let mut usb_consumer = USB_READ_CONSUMER.borrow(cs).borrow_mut();
+                usb_consumer.as_mut().unwrap().dequeue()
+            });
 
-        /*if let Some(byte) = byte {
-            if let Ok(()) = usb_buffer.push(byte) {
-                if common::end_of_frame(&byte) {
-                    match common::read(&mut usb_buffer) {
-                        Ok(message) =>  {
-                            state.update(message);
-                            write_message(&UpstreamMessage::Ack);
+            if let Some(byte) = byte {
+                if let Ok(()) = usb_buffer.push(byte) {
+                    if common::end_of_frame(&byte) {
+                        match common::read(&mut usb_buffer) {
+                            Ok(message) => {
+                                state.update(message);
+                                write_message(&UpstreamMessage::Ack);
+                            }
+                            Err(e) => {
+                                // data was corrupted during transmission
+                                write_message(&UpstreamMessage::BadP(e));
+                            }
                         }
-                        Err(e) => {
-                            // data was not received correctly
-                            write_message(&UpstreamMessage::BadP(e));
-                        }
+                        usb_buffer.clear();
                     }
+                } else {
+                    // data buffer was over run, a seperator byte was mis-received
+                    write_message(&UpstreamMessage::BadO);
                     usb_buffer.clear();
                 }
             } else {
-                // data was not received correctly
-                write_message(&UpstreamMessage::BadO);
-                usb_buffer.clear();
+                break;
             }
-        }*/
+        }
 
         // forward data from nano
-        /*interrupt::free(|cs| {
-            if let Some(ref mut nano_consumer) = NANO_CONSUMER.borrow(cs).borrow_mut().deref_mut() {
-                if let Some(ref mut usb_producer) = USB_WRITE_PRODUCER.borrow(cs).borrow_mut().deref_mut() {
-                    if usb_producer.ready() {
-                        if let Some(byte) = nano_consumer.dequeue() {
-                            let _ = usb_producer.enqueue(byte).unwrap();
-
-                            if let Some(ref mut serial) = USB_SERIAL.borrow(cs).borrow_mut().deref_mut() {
-                                serial.listen(Event::DataRegisterEmpty);
-                            }
-                        }
-                    } else {
-                        panic!();
-                    }
-                }
-            }
-        });*/
-
         interrupt::free(|cs| {
             if let Some(ref mut nano_consumer) = NANO_CONSUMER.borrow(cs).borrow_mut().deref_mut() {
                 while !nano_buffer.is_full() {
