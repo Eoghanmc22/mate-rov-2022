@@ -42,9 +42,9 @@ impl RobotState {
 
 pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &UpstreamMessage, state: &mut RobotState, imu_notification: F) -> anyhow::Result<()> {
     match message {
-        UpstreamMessage::IMUStream(byte) => {
+        UpstreamMessage::IMUStream(partial_frame) => {
             let mut frame_buffer = state.frame_buffer.take().unwrap_or(vec![]);
-            frame_buffer.push(*byte);
+            frame_buffer.extend_from_slice(partial_frame);
 
             if let Some(start) = frame_buffer.iter().position(|&byte| byte == b'A') {
                 if let Some(len) = frame_buffer[start..].iter().rposition(|&byte| byte == b'\n') {

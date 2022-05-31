@@ -18,7 +18,7 @@ pub struct VelocityData {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum UpstreamMessage<'a> {
     Init,
-    IMUStream(u8),
+    IMUStream(&'a [u8]),
     Log(&'a str),
     Panic,
     Ack,

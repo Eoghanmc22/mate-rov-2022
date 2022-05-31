@@ -9,6 +9,7 @@ mod spsc;
 
 use core::cell::RefCell;
 use core::mem;
+use core::ops::DerefMut;
 use arduino_hal::prelude::*;
 use embedded_hal::prelude::*;
 use embedded_hal::serial::Write;
@@ -49,43 +50,51 @@ fn panic(info: &PanicInfo) -> ! {
     }
 }
 
-static USB_SERIAL_RX: Mutex<RefCell<Option<UsartReader<USART0, Pin<Input, PE0>, Pin<Output, PE1>>>>> = Mutex::new(RefCell::new(None));
+static USB_SERIAL: Mutex<RefCell<Option<Usart<USART0, Pin<Input, PE0>, Pin<Output, PE1>>>>> = Mutex::new(RefCell::new(None));
 static NANO_SERIAL_RX: Mutex<RefCell<Option<UsartReader<USART1, Pin<Input, PD2>, Pin<Output, PD3>>>>> = Mutex::new(RefCell::new(None));
 
-static mut NANO_QUEUE: Queue<u8, 64> = Queue::new();
-static NANO_PRODUCER: Mutex<RefCell<Option<Producer<u8, 64>>>> = Mutex::new(RefCell::new(None));
-static NANO_CONSUMER: Mutex<RefCell<Option<Consumer<u8, 64>>>> = Mutex::new(RefCell::new(None));
+static mut NANO_QUEUE: Queue<u8, 256> = Queue::new();
+static NANO_PRODUCER: Mutex<RefCell<Option<Producer<u8, 256>>>> = Mutex::new(RefCell::new(None));
+static NANO_CONSUMER: Mutex<RefCell<Option<Consumer<u8, 256>>>> = Mutex::new(RefCell::new(None));
 
-static mut USB_QUEUE: Queue<u8, 256> = Queue::new();
-static USB_PRODUCER: Mutex<RefCell<Option<Producer<u8, 256>>>> = Mutex::new(RefCell::new(None));
-static USB_CONSUMER: Mutex<RefCell<Option<Consumer<u8, 256>>>> = Mutex::new(RefCell::new(None));
+static mut USB_READ_QUEUE: Queue<u8, 256> = Queue::new();
+static USB_READ_PRODUCER: Mutex<RefCell<Option<Producer<u8, 256>>>> = Mutex::new(RefCell::new(None));
+static USB_READ_CONSUMER: Mutex<RefCell<Option<Consumer<u8, 256>>>> = Mutex::new(RefCell::new(None));
+
+static mut USB_WRITE_QUEUE: Queue<u8, 256> = Queue::new();
+static USB_WRITE_PRODUCER: Mutex<RefCell<Option<Producer<u8, 256>>>> = Mutex::new(RefCell::new(None));
+static USB_WRITE_CONSUMER: Mutex<RefCell<Option<Consumer<u8, 256>>>> = Mutex::new(RefCell::new(None));
 
 #[arduino_hal::entry]
 fn main() -> ! {
     let mut usb_buffer = Vec::<u8, { mem::size_of::<DownstreamMessage>() + 5 }>::new();
+    let mut nano_buffer = Vec::<u8, 16>::new();
 
     let dp = Peripherals::take().unwrap();
     let pins = pins!(dp);
     let mut usb = default_serial!(dp, pins, common::BAUD_RATE_CTRL);
     let mut nano = Usart::new(dp.USART1, pins.d19, pins.d18.into_output(), common::BAUD_RATE_NANO.into_baudrate());
 
-    usb.listen(Event::RxComplete);
+    //usb.listen(Event::RxComplete);
     nano.listen(Event::RxComplete);
 
     let (nano_reader, _) = nano.split();
-    let (usb_reader, mut usb_writer) = usb.split();
 
     interrupt::free(|cs| {
-        USB_SERIAL_RX.borrow(cs).borrow_mut().replace(usb_reader);
+        USB_SERIAL.borrow(cs).borrow_mut().replace(usb);
         NANO_SERIAL_RX.borrow(cs).borrow_mut().replace(nano_reader);
 
         let (nano_producer, nano_consumer) = unsafe { NANO_QUEUE.split() };
         NANO_PRODUCER.borrow(cs).replace(Some(nano_producer));
         NANO_CONSUMER.borrow(cs).replace(Some(nano_consumer));
 
-        let (usb_producer, usb_consumer) = unsafe { USB_QUEUE.split() };
-        USB_PRODUCER.borrow(cs).replace(Some(usb_producer));
-        USB_CONSUMER.borrow(cs).replace(Some(usb_consumer));
+        let (usb_read_producer, usb_read_consumer) = unsafe { USB_READ_QUEUE.split() };
+        USB_READ_PRODUCER.borrow(cs).replace(Some(usb_read_producer));
+        USB_READ_CONSUMER.borrow(cs).replace(Some(usb_read_consumer));
+
+        let (usb_write_producer, usb_write_consumer) = unsafe { USB_WRITE_QUEUE.split() };
+        USB_WRITE_PRODUCER.borrow(cs).replace(Some(usb_write_producer));
+        USB_WRITE_CONSUMER.borrow(cs).replace(Some(usb_write_consumer));
     });
 
     // Enable interrupts globally
@@ -93,65 +102,106 @@ fn main() -> ! {
 
     let mut state = State::default();
 
-    write_message(&UpstreamMessage::Init, &mut usb_writer);
+    write_message(&UpstreamMessage::Init);
 
-    let mut watchdog = wdt::Wdt::new(dp.WDT, &dp.CPU.mcusr);
-    watchdog.start(wdt::Timeout::Ms16).unwrap();
     loop {
         // process data from computer
         let byte = interrupt::free(|cs| {
-            let mut usb_consumer = USB_CONSUMER.borrow(cs).borrow_mut();
+            let mut usb_consumer = USB_READ_CONSUMER.borrow(cs).borrow_mut();
             usb_consumer.as_mut().unwrap().dequeue()
         });
 
-        if let Some(byte) = byte {
+        /*if let Some(byte) = byte {
             if let Ok(()) = usb_buffer.push(byte) {
                 if common::end_of_frame(&byte) {
                     match common::read(&mut usb_buffer) {
                         Ok(message) =>  {
                             state.update(message);
-                            write_message(&UpstreamMessage::Ack, &mut usb_writer);
+                            write_message(&UpstreamMessage::Ack);
                         }
                         Err(e) => {
                             // data was not received correctly
-                            write_message(&UpstreamMessage::BadP(e), &mut usb_writer);
+                            write_message(&UpstreamMessage::BadP(e));
                         }
                     }
                     usb_buffer.clear();
                 }
             } else {
                 // data was not received correctly
-                write_message(&UpstreamMessage::BadO, &mut usb_writer);
+                write_message(&UpstreamMessage::BadO);
                 usb_buffer.clear();
             }
-        }
+        }*/
 
         // forward data from nano
-        // maybe optimize this by using a buffer?
-        let byte = interrupt::free(|cs| {
-            let mut nano_consumer = NANO_CONSUMER.borrow(cs).borrow_mut();
-            nano_consumer.as_mut().unwrap().dequeue()
+        /*interrupt::free(|cs| {
+            if let Some(ref mut nano_consumer) = NANO_CONSUMER.borrow(cs).borrow_mut().deref_mut() {
+                if let Some(ref mut usb_producer) = USB_WRITE_PRODUCER.borrow(cs).borrow_mut().deref_mut() {
+                    if usb_producer.ready() {
+                        if let Some(byte) = nano_consumer.dequeue() {
+                            let _ = usb_producer.enqueue(byte).unwrap();
+
+                            if let Some(ref mut serial) = USB_SERIAL.borrow(cs).borrow_mut().deref_mut() {
+                                serial.listen(Event::DataRegisterEmpty);
+                            }
+                        }
+                    } else {
+                        panic!();
+                    }
+                }
+            }
+        });*/
+
+        interrupt::free(|cs| {
+            if let Some(ref mut nano_consumer) = NANO_CONSUMER.borrow(cs).borrow_mut().deref_mut() {
+                while !nano_buffer.is_full() {
+                    if let Some(&byte) = nano_consumer.peek() {
+                        if let Ok(()) = nano_buffer.push(byte) {
+                            let _ = nano_consumer.dequeue();
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
         });
 
-        if let Some(byte) = byte {
-            write_message(&UpstreamMessage::IMUStream(byte), &mut usb_writer);
+        if !nano_buffer.is_empty() {
+            write_message(&UpstreamMessage::IMUStream(&nano_buffer));
+            nano_buffer.clear();
         }
-
-        watchdog.feed();
     }
 }
-
-//TODO CLEANUP
 
 #[avr_device::interrupt(atmega2560)]
 #[allow(non_snake_case)]
 fn USART0_RX() {
     interrupt::free(|cs| {
-        let mut usb = USB_SERIAL_RX.borrow(cs).borrow_mut();
-        let mut usb_producer = USB_PRODUCER.borrow(cs).borrow_mut();
+        if let Some(ref mut usb) = USB_SERIAL.borrow(cs).borrow_mut().deref_mut() {
+            if let Some(ref mut usb_producer) = USB_READ_PRODUCER.borrow(cs).borrow_mut().deref_mut() {
+                while let Ok(byte) = usb.read() {
+                    //todo remove unwrap
+                    let _ = usb_producer.enqueue(byte).unwrap();
+                }
+            }
+        }
+    });
+}
 
-        while let Ok(byte) = usb.as_mut().unwrap().read() {
-            let _ = usb_producer.as_mut().unwrap().enqueue(byte).unwrap();
+#[avr_device::interrupt(atmega2560)]
+#[allow(non_snake_case)]
+fn USART0_UDRE() {
+    interrupt::free(|cs| {
+        if let Some(ref mut usb) = USB_SERIAL.borrow(cs).borrow_mut().deref_mut() {
+            if let Some(ref mut usb_consumer) = USB_WRITE_CONSUMER.borrow(cs).borrow_mut().deref_mut() {
+                if let Some(byte) = usb_consumer.dequeue() {
+                    let _ = usb.write(byte).unwrap();
+                } else {
+                    usb.unlisten(Event::DataRegisterEmpty);
+                }
+            }
         }
     });
 }
@@ -160,23 +210,32 @@ fn USART0_RX() {
 #[allow(non_snake_case)]
 fn USART1_RX() {
     interrupt::free(|cs| {
-        let mut nano_rx = NANO_SERIAL_RX.borrow(cs).borrow_mut();
-        let mut nano_producer = NANO_PRODUCER.borrow(cs).borrow_mut();
-
-        while let Ok(byte) = nano_rx.as_mut().unwrap().read() {
-            let _ = nano_producer.as_mut().unwrap().enqueue(byte).unwrap();
+        if let Some(ref mut nano_rx) = NANO_SERIAL_RX.borrow(cs).borrow_mut().deref_mut() {
+            if let Some(ref mut nano_producer) = NANO_PRODUCER.borrow(cs).borrow_mut().deref_mut() {
+                while let Ok(byte) = nano_rx.read() {
+                    //todo remove unwrap
+                    let _ = nano_producer.enqueue(byte).unwrap();
+                }
+            }
         }
     });
 }
 
 /// This function is unsafe when called from an interrupt handler
-fn write_message(message: &UpstreamMessage, serial: &mut impl Write<u8>) {
+fn write_message(message: &UpstreamMessage) {
     static mut OUT_BUFFER: [u8; 200] = [0; 200];
 
     let buffer = unsafe { &mut OUT_BUFFER };
     if let Ok(buffer) = common::write(message, buffer) {
-        for &mut byte in buffer {
-            let _ = block!(serial.write(byte));
-        }
+        interrupt::free(|cs| {
+            if let Some(ref mut usb_producer) = USB_WRITE_PRODUCER.borrow(cs).borrow_mut().deref_mut() {
+                if let Some(ref mut serial) = USB_SERIAL.borrow(cs).borrow_mut().deref_mut() {
+                    for &mut byte in buffer {
+                        let _ = usb_producer.enqueue(byte).unwrap();
+                    }
+                    serial.listen(Event::DataRegisterEmpty);
+                }
+            }
+        });
     }
 }
