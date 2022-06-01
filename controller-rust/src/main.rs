@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(abi_avr_interrupt)]
 
+pub mod buffer;
 mod state;
 mod sabertooth;
 mod spsc;
@@ -20,7 +21,7 @@ use crate::state::State;
 use core::panic::PanicInfo;
 use core::sync::atomic;
 use core::sync::atomic::Ordering;
-use arduino_hal::{default_serial, Peripherals, pins, Usart};
+use arduino_hal::{default_serial, delay_ms, Peripherals, pins, Usart};
 use arduino_hal::hal::port::{PD2, PD3, PE0, PE1};
 use arduino_hal::hal::usart::Event;
 use arduino_hal::port::mode::{Input, Output};
@@ -31,6 +32,7 @@ use avr_device::interrupt;
 use avr_device::interrupt::Mutex;
 use spsc::{Consumer, Producer, Queue};
 use ufmt::uwriteln;
+use common::CommunicationError;
 
 #[inline(never)]
 #[panic_handler]
@@ -64,6 +66,7 @@ fn main() -> ! {
     let dp = Peripherals::take().unwrap();
     let pins = pins!(dp);
     let mut usb = default_serial!(dp, pins, common::BAUD_RATE_CTRL);
+    let mut sabertooth = Usart::new(dp.USART1, pins.d19, pins.d18.into_output(), common::BAUD_RATE_SABERTOOTH.into_baudrate());
 
     // To improve reliability, we need to handle serial data as soon as it is received
     usb.listen(Event::RxComplete);
@@ -78,6 +81,10 @@ fn main() -> ! {
         USB_READ_PRODUCER.borrow(cs).replace(Some(usb_read_producer));
         USB_READ_CONSUMER.borrow(cs).replace(Some(usb_read_consumer));
     });
+
+    // Wait for sabertooth motor controllers to initialize
+    delay_ms(2000);
+    write_callback(sabertooth::write_baud, &mut sabertooth);
 
     // Enable interrupts globally
     unsafe { interrupt::enable() };
@@ -153,13 +160,24 @@ fn USART0_RX() {
     });
 }
 
+
+static mut OUT_BUFFER: [u8; 200] = [0; 200];
+
 /// This function is unsafe when called from an interrupt handler
 fn write_message(message: &UpstreamMessage, serial: &mut impl Write<u8>) {
-    static mut OUT_BUFFER: [u8; 200] = [0; 200];
-
     // Retrieve a temporary buffer and encode the packet into it
     let buffer = unsafe { &mut OUT_BUFFER };
     if let Ok(buffer) = common::write(message, buffer) {
+        // Write the buffer
+        write_buffer(buffer, serial);
+    }
+}
+
+/// This function is unsafe when called from an interrupt handler
+fn write_callback<F: Fn(&mut [u8]) -> Result<&mut [u8], CommunicationError>>(message_producer: F, serial: &mut impl Write<u8>) {
+    // Retrieve a temporary buffer and encode the packet into it
+    let buffer = unsafe { &mut OUT_BUFFER };
+    if let Ok(buffer) = (message_producer)(buffer) {
         // Write the buffer
         write_buffer(buffer, serial);
     }
