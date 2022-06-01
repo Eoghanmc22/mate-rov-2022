@@ -6,6 +6,7 @@ mod time;
 mod state;
 mod sabertooth;
 mod spsc;
+mod joystick;
 
 use core::cell::RefCell;
 use core::mem;
@@ -15,24 +16,25 @@ use embedded_hal::prelude::*;
 use embedded_hal::serial::Write;
 use heapless::Vec;
 use nb::block;
-use common::controller::{DownstreamMessage, UpstreamMessage};
+use common::controller::{DownstreamMessage, UpstreamMessage, VelocityData};
 use crate::state::State;
 
 use core::panic::PanicInfo;
 use core::sync::atomic;
 use core::sync::atomic::Ordering;
-use arduino_hal::{default_serial, delay_ms, Peripherals, pins, Usart};
-use arduino_hal::hal::port::{PD2, PD3, PE0, PE1};
+use arduino_hal::{Adc, default_serial, delay_ms, Peripherals, pins, Usart};
+use arduino_hal::hal::port::{PE0, PE1};
 use arduino_hal::hal::usart::Event;
 use arduino_hal::port::mode::{Input, Output};
 use arduino_hal::port::Pin;
 use arduino_hal::usart::UsartReader;
-use avr_device::atmega2560::{USART0, USART1};
+use avr_device::atmega2560::USART0;
 use avr_device::interrupt;
 use avr_device::interrupt::Mutex;
 use spsc::{Consumer, Producer, Queue};
 use ufmt::uwriteln;
 use common::CommunicationError;
+use crate::joystick::Joystick;
 
 #[inline(never)]
 #[panic_handler]
@@ -62,9 +64,10 @@ fn main() -> ! {
     // This buffer will hold partially received packets
     let mut usb_buffer = Vec::<u8, { mem::size_of::<DownstreamMessage>() + 5 }>::new();
 
-    // Setup up serial communication
+    // Setup up peripherals
     let dp = Peripherals::take().unwrap();
     let pins = pins!(dp);
+    let mut adc = Adc::new(dp.ADC, Default::default());
     let mut usb = default_serial!(dp, pins, common::BAUD_RATE_CTRL);
     let mut sabertooth = Usart::new(dp.USART1, pins.d19, pins.d18.into_output(), common::BAUD_RATE_SABERTOOTH.into_baudrate());
 
@@ -80,7 +83,15 @@ fn main() -> ! {
         let (usb_read_producer, usb_read_consumer) = unsafe { USB_READ_QUEUE.split() };
         USB_READ_PRODUCER.borrow(cs).replace(Some(usb_read_producer));
         USB_READ_CONSUMER.borrow(cs).replace(Some(usb_read_consumer));
+
+        atomic::compiler_fence(Ordering::SeqCst);
     });
+
+    // Setup joystick
+    let joystick = Joystick::new(pins.a0, pins.a1, pins.a2, pins.a3, &mut adc);
+
+    // Start clock
+    time::millis_init(dp.TC0);
 
     // Wait for sabertooth motor controllers to initialize
     delay_ms(2000);
@@ -114,7 +125,7 @@ fn main() -> ! {
                         match common::read(&mut usb_buffer) {
                             Ok(message) => {
                                 // Update the robot's state and send acknowledgement
-                                state.update(message);
+                                state.update_pc(message);
                                 write_message(&UpstreamMessage::Ack, &mut usb_writer);
                             }
                             Err(e) => {
@@ -137,7 +148,11 @@ fn main() -> ! {
             }
         }
 
-        // TODO Read analog joysticks
+        // Update joystick state
+        {
+            let joystick_velocity = joystick.read(&mut adc);
+            state.update_joystick(joystick_velocity);
+        }
 
         // Send updated motor speeds
         {
@@ -149,6 +164,11 @@ fn main() -> ! {
         }
     }
 }
+
+
+// ------------------------
+// |      Interrupts      |
+// ------------------------
 
 #[avr_device::interrupt(atmega2560)]
 #[allow(non_snake_case)]
@@ -167,6 +187,10 @@ fn USART0_RX() {
     });
 }
 
+
+// -------------------------
+// |     Communication     |
+// -------------------------
 
 static mut OUT_BUFFER: [u8; 200] = [0; 200];
 

@@ -2,6 +2,7 @@
 
 use postcard::flavors::{Cobs, Slice};
 use serde::{Serialize, Deserialize};
+use crate::controller::VelocityData;
 use crate::crc::Crc;
 
 pub mod controller;
@@ -56,7 +57,7 @@ mod test {
             forwards_left: 4.0,
             forwards_right: 3.0,
             strafing: 2.0,
-            up: 1.0
+            vertical: 1.0
         });
 
         let buffer2 = write(&command, &mut buffer).unwrap();
@@ -67,7 +68,7 @@ mod test {
                 assert_eq!(data.forwards_left, 4.0);
                 assert_eq!(data.forwards_right, 3.0);
                 assert_eq!(data.strafing, 2.0);
-                assert_eq!(data.up, 1.0);
+                assert_eq!(data.vertical, 1.0);
             }
             _ => { panic!() }
         }
@@ -97,4 +98,18 @@ pub fn read<'a, D: Deserialize<'a>>(buffer: &'a mut [u8]) -> Result<D, Communica
 
 pub fn end_of_frame(byte: &u8) -> bool {
     *byte == 0x00
+}
+
+pub fn joystick_math(lx: f32, ly: f32, rx: f32, ry: f32) -> VelocityData {
+    let forwards_left = lx - ly;
+    let forwards_right = lx + ly;
+    let strafing = rx;
+    let vertical = ry;
+
+    VelocityData {
+        forwards_left,
+        forwards_right,
+        strafing,
+        vertical
+    }.clamp()
 }

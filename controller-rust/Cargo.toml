@@ -24,6 +24,10 @@ git = "https://github.com/Eoghanmc22/avr-hal"
 branch = "branch"
 features = ["arduino-mega2560"]
 
+[dependencies.avr-hal-generic]
+git = "https://github.com/Eoghanmc22/avr-hal"
+branch = "branch"
+
 [patch.crates-io]
 heapless = { git = 'https://github.com/Eoghanmc22/heapless' }
 

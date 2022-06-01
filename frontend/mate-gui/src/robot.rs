@@ -205,7 +205,7 @@ mod communication {
                     forwards_left: 3.0,
                     forwards_right: 2.0,
                     strafing: 1.0,
-                    up: 0.5
+                    vertical: 0.5
                 })).unwrap();
                 //println!("send");
                 //thread::sleep(Duration::from_millis(100));
