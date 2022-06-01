@@ -160,9 +160,14 @@ fn write_message(message: &UpstreamMessage, serial: &mut impl Write<u8>) {
     // Retrieve a temporary buffer and encode the packet into it
     let buffer = unsafe { &mut OUT_BUFFER };
     if let Ok(buffer) = common::write(message, buffer) {
-        // write each byte to serial
-        for &mut byte in buffer {
-            let _ = block!(serial.write(byte));
-        }
+        // Write the buffer
+        write_buffer(buffer, serial);
+    }
+}
+
+fn write_buffer(buffer: &[u8], serial: &mut impl Write<u8>) {
+    // write each byte to serial
+    for &byte in buffer {
+        let _ = block!(serial.write(byte));
     }
 }
