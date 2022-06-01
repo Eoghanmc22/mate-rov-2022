@@ -1,5 +1,5 @@
 // Copyright (c) 2020 Dario Nieuwenhuis
-// Code based of off atomic_polyfill.
+// Code based off of atomic_polyfill.
 
 pub use core::sync::atomic::Ordering;
 
