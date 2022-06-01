@@ -139,11 +139,11 @@ fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], l
 }
 
 
-const MIN_WRITE_DELAY: f64 = 5.0/1000.0;
+const MIN_WRITE_DELAY: Duration = Duration::from_millis(2);
 
 fn do_write(buffer: &mut [u8], command_stream: &Receiver<DownstreamMessage>, port: &mut impl SerialPort, last_write: &mut Instant) -> anyhow::Result<()> {
-    if last_write.elapsed().as_secs_f64() > MIN_WRITE_DELAY {
-        for command in command_stream.try_iter().take(1) {
+    if last_write.elapsed() > MIN_WRITE_DELAY {
+        for command in command_stream.try_iter().take(2) {
             if let Ok(buffer) = common::write(&command, buffer) {
                 write_all(buffer, port)?;
             }
