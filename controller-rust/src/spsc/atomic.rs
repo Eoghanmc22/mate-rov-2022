@@ -1,7 +1,7 @@
 // Copyright (c) 2020 Dario Nieuwenhuis
 // Code based of off atomic_polyfill.
 
-pub use core::sync::atomic::{compiler_fence, fence, Ordering};
+pub use core::sync::atomic::Ordering;
 
 #[repr(transparent)]
 pub struct AtomicUsize {

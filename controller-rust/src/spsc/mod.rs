@@ -87,9 +87,12 @@
 //! - The numbers reported correspond to the successful path (i.e. `Some` is returned by `dequeue`
 //! and `Ok` is returned by `enqueue`).
 
+pub mod atomic;
+mod sealed;
+
 use core::{cell::UnsafeCell, fmt, hash, mem::MaybeUninit, ptr};
 
-use crate::atomic::{AtomicUsize, Ordering};
+use atomic::{AtomicUsize, Ordering};
 
 /// A statically allocated single producer single consumer queue with a capacity of `N - 1` elements
 ///
@@ -116,7 +119,7 @@ impl<T, const N: usize> Queue<T, N> {
     /// Creates an empty queue with a fixed capacity of `N - 1`
     pub const fn new() -> Self {
         // Const assert N > 1
-        crate::sealed::greater_than_1::<N>();
+        sealed::greater_than_1::<N>();
 
         Queue {
             head: AtomicUsize::new(0),

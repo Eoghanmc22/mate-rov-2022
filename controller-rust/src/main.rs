@@ -3,8 +3,7 @@
 #![feature(abi_avr_interrupt)]
 
 mod state;
-mod atomic;
-mod sealed;
+mod sabertooth;
 mod spsc;
 
 use core::cell::RefCell;
@@ -19,6 +18,7 @@ use common::controller::{DownstreamMessage, UpstreamMessage};
 use crate::state::State;
 
 use core::panic::PanicInfo;
+use core::sync::atomic;
 use core::sync::atomic::Ordering;
 use arduino_hal::{default_serial, Peripherals, pins, Usart};
 use arduino_hal::hal::port::{PD2, PD3, PE0, PE1};
@@ -29,7 +29,7 @@ use arduino_hal::usart::UsartReader;
 use avr_device::atmega2560::{USART0, USART1};
 use avr_device::interrupt;
 use avr_device::interrupt::Mutex;
-use crate::spsc::{Consumer, Producer, Queue};
+use spsc::{Consumer, Producer, Queue};
 use ufmt::uwriteln;
 
 #[inline(never)]
@@ -129,6 +129,10 @@ fn main() -> ! {
                 break;
             }
         }
+
+        // TODO Read analog joysticks
+
+        // TODO Communicate with motor controllers
     }
 }
 
