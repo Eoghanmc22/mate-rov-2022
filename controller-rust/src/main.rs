@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(abi_avr_interrupt)]
 
-pub mod buffer;
+mod time;
 mod state;
 mod sabertooth;
 mod spsc;
@@ -84,7 +84,7 @@ fn main() -> ! {
 
     // Wait for sabertooth motor controllers to initialize
     delay_ms(2000);
-    write_callback(sabertooth::write_baud, &mut sabertooth);
+    write_callback(sabertooth::write_init, &mut sabertooth);
 
     // Enable interrupts globally
     unsafe { interrupt::enable() };
@@ -139,7 +139,14 @@ fn main() -> ! {
 
         // TODO Read analog joysticks
 
-        // TODO Communicate with motor controllers
+        // Send updated motor speeds
+        {
+            let VelocityData { forwards_left, forwards_right, strafing, vertical } = state.compute_velocity();
+            write_callback(|buffer| sabertooth::write_speed(buffer, sabertooth::MOTOR_LEFT,     (forwards_left * 127.0) as i8),  &mut sabertooth);
+            write_callback(|buffer| sabertooth::write_speed(buffer, sabertooth::MOTOR_RIGHT,    (forwards_right * 127.0) as i8), &mut sabertooth);
+            write_callback(|buffer| sabertooth::write_speed(buffer, sabertooth::MOTOR_STRAFING, (strafing * 127.0) as i8),       &mut sabertooth);
+            write_callback(|buffer| sabertooth::write_speed(buffer, sabertooth::MOTOR_VERTICAL, (vertical * 127.0) as i8),       &mut sabertooth);
+        }
     }
 }
 
