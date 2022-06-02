@@ -8,8 +8,7 @@ unsigned long startTime;
 void setup() {
     Serial.begin(57600);  // start serial for output
 
-    // Wait for IMU to initialize
-    delay(1000);
+    initCommunication();
     enableIMU();
 }
 

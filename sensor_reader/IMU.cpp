@@ -17,6 +17,12 @@ void readFrom(int device, byte address, int num, byte buff[]) {
     Wire.readBytes(buff, received);
 }
 
+void initCommunication(){
+  Wire.begin();
+  
+  // Wait for IMU to power on
+  delay(1000);
+}
 
 void enableIMU(){
     // Initialise the accelerometer
