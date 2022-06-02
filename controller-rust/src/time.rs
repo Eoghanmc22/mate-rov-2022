@@ -21,6 +21,7 @@ const MILLIS_INCREMENT: u32 = PRESCALER * TIMER_COUNTS / 16000;
 
 static MILLIS_COUNTER: Mutex<Cell<u32>> = Mutex::new(Cell::new(0));
 
+/// Initialize the system clock
 pub fn millis_init(tc0: TC0) {
     // Configure the timer for the above interval (in CTC mode)
     // and enable its interrupt.
@@ -51,6 +52,7 @@ fn TIMER0_COMPA() {
     })
 }
 
+/// Get the current time
 pub fn millis() -> u32 {
     interrupt::free(|cs| MILLIS_COUNTER.borrow(cs).get())
 }

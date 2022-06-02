@@ -74,6 +74,7 @@ fn main() -> ! {
     // To improve reliability, we need to handle serial data as soon as it is received
     usb.listen(Event::RxComplete);
 
+    // Split usb interface so the read component can be shared safely
     let (usb_reader, mut usb_writer) = usb.split();
 
     // Initialize globals
@@ -93,7 +94,7 @@ fn main() -> ! {
     // Start clock
     time::millis_init(dp.TC0);
 
-    // Wait for sabertooth motor controllers to initialize
+    // Wait for sabertooth motor controllers to power on and then initialize it
     delay_ms(2000);
     write_callback(sabertooth::write_init, &mut sabertooth);
 

@@ -1,7 +1,6 @@
 #![feature(never_type)]
 
 use serialport::{ClearBuffer, SerialPort, SerialPortInfo, SerialPortType};
-use std::io::{Read, Write};
 use std::{io, thread};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -37,8 +36,7 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + '
         .open_native()
         .expect("Failed to open port");
 
-    //dont do this?
-    //port.clear(ClearBuffer::All)?;
+    port.clear(ClearBuffer::All)?;
 
     let mut buf_read = [0; 4098];
     let mut buf_write = [0; 4098];
@@ -138,9 +136,7 @@ fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], l
     Ok(())
 }
 
-
 const MIN_WRITE_DELAY: Duration = Duration::from_millis(2);
-
 fn do_write(buffer: &mut [u8], command_stream: &Receiver<DownstreamMessage>, port: &mut impl SerialPort, last_write: &mut Instant) -> anyhow::Result<()> {
     if last_write.elapsed() > MIN_WRITE_DELAY {
         for command in command_stream.try_iter().take(2) {

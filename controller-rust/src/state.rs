@@ -1,5 +1,6 @@
 use common::controller::{DownstreamMessage, VelocityData};
 
+/// A struct that keeps track of the robots current state
 #[derive(Default)]
 pub struct State {
     // forwards_left, forwards_right, strafing, up
@@ -8,6 +9,7 @@ pub struct State {
 }
 
 impl State {
+    /// Update the state with info from the connected pc
     pub fn update_pc(&mut self, message: DownstreamMessage) {
         match message {
             DownstreamMessage::VelocityDataMessage(velocity) => {
@@ -17,11 +19,13 @@ impl State {
         }
     }
 
+    /// Update the state with info from the joysticks
     pub fn update_joystick(&mut self, velocity: VelocityData) {
         self.motor_sp_joystick = velocity
     }
 
     // Maybe add interpolation? prob not necessary tho
+    /// Compute the motor setpoints
     pub fn compute_velocity(&self) -> VelocityData {
         let motor_sp_pc = self.motor_sp_pc.clamp();
         let motor_sp_joystick = self.motor_sp_joystick.clamp();

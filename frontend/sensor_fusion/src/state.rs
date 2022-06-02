@@ -1,7 +1,6 @@
 use std::time::Duration;
 use glam::*;
 use common::controller::UpstreamMessage;
-use crate::frame;
 use crate::frame::{decode_imu_frame, IMUFrame};
 use crate::fusion::*;
 
@@ -42,7 +41,7 @@ impl RobotState {
 
 pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &UpstreamMessage, state: &mut RobotState, imu_notification: F) -> anyhow::Result<()> {
     match message {
-        UpstreamMessage::IMUStream(partial_frame) => {
+        /*UpstreamMessage::IMUStream(partial_frame) => {
             let mut frame_buffer = state.frame_buffer.take().unwrap_or(vec![]);
             frame_buffer.extend_from_slice(partial_frame);
 
@@ -76,12 +75,9 @@ pub fn handle_message<F: Fn(&RobotState) -> anyhow::Result<()>>(message: &Upstre
             }
 
             state.frame_buffer.replace(frame_buffer);
-        }
+        }*/
         UpstreamMessage::Log(msg) => {
             println!("Arduino logged: {}", msg)
-        }
-        UpstreamMessage::Panic => {
-            println!("Arduino panicked")
         }
         UpstreamMessage::Init => {
             println!("Arduino init")

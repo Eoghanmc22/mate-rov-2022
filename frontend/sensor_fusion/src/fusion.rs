@@ -28,7 +28,6 @@ pub fn yaw_correction(state: &mut RobotState, a_m: f32) {
 }
 
 const GRAVITY : f32 = 9.80665;
-
 pub fn subtract_gravity(state: &mut RobotState) {
     state.acceleration -= vec3(0.0, 0.0, GRAVITY);
 }

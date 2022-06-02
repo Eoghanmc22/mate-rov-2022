@@ -3,8 +3,7 @@ use crate::CommunicationError;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum DownstreamMessage {
-    VelocityDataMessage(VelocityData),
-    Msg
+    VelocityDataMessage(VelocityData)
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -31,9 +30,8 @@ impl VelocityData {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum UpstreamMessage<'a> {
     Init,
-    IMUStream(&'a [u8]),
     Log(&'a str),
-    Panic,
+
     Ack,
     BadO,
     BadP(CommunicationError)
