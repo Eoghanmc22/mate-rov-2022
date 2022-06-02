@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::thread;
 use bevy::prelude::*;
 use crossbeam::channel::{bounded, Receiver, Sender};
@@ -58,13 +57,10 @@ fn serial_monitor(mut commands: Commands) {
     let (tx_data, rx_data) = bounded::<RobotState>(10);
     let (tx_notification, rx_notification) = bounded::<SerialNotification>(10);
     let (tx_command, rx_command) = bounded::<DownstreamMessage>(10);
-    {
-        let tx_command = tx_command.clone();
-        thread::Builder::new()
-            .name("Serial Monitor".to_owned())
-            .spawn(move || utils::error_boundary(|| communication::listen_to_serial(tx_data.clone(), rx_notification.clone(), rx_command.clone(), tx_command.clone())))
-            .unwrap();
-    }
+    thread::Builder::new()
+        .name("Serial Monitor".to_owned())
+        .spawn(move || utils::error_boundary(|| communication::listen_to_serial(tx_data.clone(), rx_notification.clone(), rx_command.clone())))
+        .unwrap();
 
     commands.insert_resource(Serial(rx_data, tx_notification, tx_command));
 }
@@ -190,32 +186,16 @@ mod communication {
     use sensor_fusion::state::handle_message;
     use super::*;
 
-    pub(super) fn listen_to_serial(tx_data: Sender<RobotState>, rx_notification: Receiver<SerialNotification>, rx_command: Receiver<DownstreamMessage>, tx_command: Sender<DownstreamMessage>) -> anyhow::Result<!> {
+    pub(super) fn listen_to_serial(tx_data: Sender<RobotState>, rx_notification: Receiver<SerialNotification>, rx_command: Receiver<DownstreamMessage>) -> anyhow::Result<!> {
         let mut state = RobotState::default();
         state.reset();
-
-        let start = Instant::now();
-        let mut messages = 0;
-
-        let tx_command = tx_command.clone();
-        thread::spawn(move || {
-            loop {
-                //tx_command.send(DownstreamMessage::Msg).unwrap();
-                tx_command.send(DownstreamMessage::VelocityDataMessage(VelocityData {
-                    forwards_left: 3.0,
-                    forwards_right: 2.0,
-                    strafing: 1.0,
-                    vertical: 0.5
-                })).unwrap();
-                //println!("send");
-                //thread::sleep(Duration::from_millis(100));
-            }
-        });
 
         serial::listen(move |message| {
             for command in rx_notification.try_iter() {
                 match command {
                     SerialNotification::ResetState => {
+                        start = Instant::now();
+                        messages = 0;
                         state.reset();
                     }
                 }
@@ -224,9 +204,6 @@ mod communication {
             handle_message(&message, &mut state, |state| {
                 Ok(tx_data.send(state.clone())?)
             })?;
-
-            messages += 1;
-            //println!("mps: {}", messages as f64 / start.elapsed().as_secs_f64());
 
             Ok(())
         }, Some(rx_command.clone()))

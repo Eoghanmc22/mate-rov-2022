@@ -10,8 +10,9 @@ pub mod crc;
 
 // other vals can have less error?
 pub const BAUD_RATE_CTRL : u32 = 1000000;//1000000;//921600;//460800;//115200;
-pub const BAUD_RATE_NANO : u32 = 57600;
+pub const BAUD_RATE_FORWARD: u32 = 1000000;
 pub const BAUD_RATE_SABERTOOTH : u32 = 38400;
+pub const BAUD_RATE_NANO : u32 = 57600;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum CommunicationError {
