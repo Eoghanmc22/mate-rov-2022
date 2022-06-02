@@ -57,9 +57,15 @@ fn serial_monitor(mut commands: Commands) {
     let (tx_data, rx_data) = bounded::<RobotState>(10);
     let (tx_notification, rx_notification) = bounded::<SerialNotification>(10);
     let (tx_command, rx_command) = bounded::<DownstreamMessage>(10);
+
     thread::Builder::new()
-        .name("Serial Monitor".to_owned())
-        .spawn(move || utils::error_boundary(|| communication::listen_to_serial(tx_data.clone(), rx_notification.clone(), rx_command.clone())))
+        .name("IMU Serial Monitor".to_owned())
+        .spawn(move || utils::error_boundary(|| communication::listen_to_imu(tx_data.clone(), rx_notification.clone())))
+        .unwrap();
+
+    thread::Builder::new()
+        .name("Controller Serial Monitor".to_owned())
+        .spawn(move || utils::error_boundary(|| communication::listen_to_controller(rx_command.clone())))
         .unwrap();
 
     commands.insert_resource(Serial(rx_data, tx_notification, tx_command));
@@ -181,16 +187,14 @@ pub enum SerialNotification {
 }
 
 mod communication {
-    use std::time::{Duration, Instant};
-    use common::controller::{DownstreamMessage, VelocityData};
-    use sensor_fusion::state::handle_message;
+    use sensor_fusion::state;
     use super::*;
 
-    pub(super) fn listen_to_serial(tx_data: Sender<RobotState>, rx_notification: Receiver<SerialNotification>, rx_command: Receiver<DownstreamMessage>) -> anyhow::Result<!> {
+    pub(super) fn listen_to_imu(tx_data: Sender<RobotState>, rx_notification: Receiver<SerialNotification>) -> anyhow::Result<!> {
         let mut state = RobotState::default();
         state.reset();
 
-        serial::listen(move |message| {
+        serial::imu::listen(move |frame| {
             for command in rx_notification.try_iter() {
                 match command {
                     SerialNotification::ResetState => {
@@ -199,11 +203,19 @@ mod communication {
                 }
             }
 
-            handle_message(&message, &mut state, |state| {
-                Ok(tx_data.send(state.clone())?)
-            })?;
+            state::update_state(&frame, &mut state);
+
+            tx_data.send(state.clone())?;
 
             Ok(())
-        }, Some(rx_command.clone()))
+        })
+    }
+
+    pub(super) fn listen_to_controller(rx_command: Receiver<DownstreamMessage>) -> anyhow::Result<!> {
+        serial::controller::listen(move |message| {
+            state::handle_message(&message);
+
+            Ok(())
+        }, Some(rx_command))
     }
 }

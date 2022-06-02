@@ -13,13 +13,13 @@ fn main() -> anyhow::Result<!> {
 
     //let mut counter = 0;
 
-    serial::listen(move |message| {
+    serial::imu::listen(move |frame| {
         //counter += 1;
-        state::handle_message(&message, &mut state);
+        state::update_state(&frame, &mut state);
 
         //calibrate_local_accel(&frame, &mut local_accel, counter);
         Ok(())
-    }, None)
+    })
 }
 
 /*fn calibrate_gyro(frame: &IMUFrame, data: &mut (f32, f32, f32), counter: usize) {

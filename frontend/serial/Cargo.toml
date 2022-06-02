@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 common = { path = "../../common" }
+sensor_fusion = { path = "../sensor_fusion" }
 serialport = "4.1.0"
 anyhow = "1.0.57"
 crossbeam = "0.8.1"

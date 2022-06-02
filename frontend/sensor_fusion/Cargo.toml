@@ -8,5 +8,4 @@ edition = "2021"
 [dependencies]
 common = { path = "../../common" }
 anyhow = "1.0.57"
-serial = { path = "../serial" }
 glam = "0.20.5"
