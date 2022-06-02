@@ -9,5 +9,5 @@ edition = "2021"
 common = { path = "../../common" }
 anyhow = "1.0.57"
 serial = { path = "../serial" }
-sensor_fusion = { path = "../sensor_fusion" }
+sensor-fusion = { path = "../sensor-fusion" }
 glam = "0.20.5"
