@@ -1,6 +1,6 @@
 use std::time::Duration;
 use glam::*;
-use common::controller::UpstreamMessage;
+use common::controller::{UpstreamMessage, VelocityData};
 use crate::frame::IMUFrame;
 use crate::fusion::*;
 
@@ -24,6 +24,12 @@ pub struct RobotState {
     first_read: bool,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct MotorState {
+    pub total_velocity: VelocityData,
+    pub emergency_stop: bool,
+}
+
 impl RobotState {
     pub fn reset(&mut self) {
         *self = Default::default();
@@ -31,7 +37,7 @@ impl RobotState {
     }
 }
 
-pub fn handle_message(message: &UpstreamMessage) {
+pub fn handle_message(message: &UpstreamMessage, state: &mut MotorState) {
     match message {
         UpstreamMessage::Log(msg) => {
             println!("Arduino logged: {}", msg)
@@ -40,13 +46,20 @@ pub fn handle_message(message: &UpstreamMessage) {
             println!("Arduino init")
         }
         UpstreamMessage::Ack => {
-            println!("ack");
+            //println!("ack");
         }
         UpstreamMessage::BadP(com_error) => {
             println!("badp: {:?}", com_error);
         }
         UpstreamMessage::BadO => {
             println!("bado");
+        }
+        UpstreamMessage::EStop(emergency_stop) => {
+            state.emergency_stop = *emergency_stop;
+        }
+        UpstreamMessage::TotalVelocity(velocity) => {
+            println!("velocity: {:?}", velocity);
+            state.total_velocity = velocity.clone();
         }
     }
 }

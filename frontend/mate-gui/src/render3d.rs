@@ -76,7 +76,7 @@ fn extract_second_camera_phases(
 struct DisplayCamera3d;
 
 #[derive(Component)]
-struct IMU;
+struct Imu;
 
 fn create_new_window(mut create_window_events: EventWriter<CreateWindow>, mut commands: Commands) {
     let window_id = WindowId::new();
@@ -112,7 +112,7 @@ fn setup_3d(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materi
         mesh: meshes.add(Mesh::from(shape::Box::new(2.0, 3.5, 0.1))),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         ..default()
-    }).insert(IMU);
+    }).insert(Imu);
 
 
     // x
@@ -160,7 +160,7 @@ fn setup_3d(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materi
     });
 }
 
-fn handle_imu(mut query: Query<&mut Transform, With<IMU>>, mut ev_data: EventReader<DataEvent>) {
+fn handle_imu(mut query: Query<&mut Transform, With<Imu>>, mut ev_data: EventReader<DataEvent>) {
     for DataEvent(state) in ev_data.iter() {
         for mut transform in query.iter_mut() {
             if (1.0 - state.angle.length()).abs() > 0.01 {

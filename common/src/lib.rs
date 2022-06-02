@@ -14,7 +14,7 @@ pub const BAUD_RATE_FORWARD: u32 = 1000000;
 pub const BAUD_RATE_SABERTOOTH : u32 = 38400;
 pub const BAUD_RATE_NANO : u32 = 57600;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum CommunicationError {
     BadData,
     BadCheckSum(u16, u16),
@@ -54,7 +54,7 @@ mod test {
     fn test() {
         let mut buffer : [u8; 200] = unsafe { MaybeUninit::uninit().assume_init() };
 
-        let command = DownstreamMessage::VelocityDataMessage(VelocityData {
+        let command = DownstreamMessage::VelocityUpdate(VelocityData {
             forwards_left: 4.0,
             forwards_right: 3.0,
             strafing: 2.0,
@@ -65,7 +65,7 @@ mod test {
         let received = read::<DownstreamMessage>(buffer2).unwrap(); //
 
         match received {
-            DownstreamMessage::VelocityDataMessage(data) => {
+            DownstreamMessage::VelocityUpdate(data) => {
                 assert_eq!(data.forwards_left, 4.0);
                 assert_eq!(data.forwards_right, 3.0);
                 assert_eq!(data.strafing, 2.0);
@@ -102,8 +102,8 @@ pub fn end_of_frame(byte: &u8) -> bool {
 }
 
 pub fn joystick_math(lx: f32, ly: f32, rx: f32, ry: f32) -> VelocityData {
-    let forwards_left = lx - ly;
-    let forwards_right = lx + ly;
+    let forwards_left = ly + lx;
+    let forwards_right = ly - lx;
     let strafing = rx;
     let vertical = ry;
 

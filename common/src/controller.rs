@@ -1,12 +1,13 @@
 use serde::{Serialize, Deserialize};
 use crate::CommunicationError;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum DownstreamMessage {
-    VelocityDataMessage(VelocityData)
+    VelocityUpdate(VelocityData),
+    EmergencyStop
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct VelocityData {
     pub forwards_left: f32,
     pub forwards_right: f32,
@@ -27,12 +28,16 @@ impl VelocityData {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum UpstreamMessage<'a> {
     Init,
     Log(&'a str),
 
     Ack,
     BadO,
-    BadP(CommunicationError)
+    BadP(CommunicationError),
+
+    TotalVelocity(VelocityData),
+
+    EStop(bool)
 }

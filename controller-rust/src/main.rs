@@ -59,37 +59,59 @@ static mut USB_READ_QUEUE: Queue<u8, 256> = Queue::new();
 static USB_READ_PRODUCER: Mutex<RefCell<Option<Producer<u8, 256>>>> = Mutex::new(RefCell::new(None));
 static USB_READ_CONSUMER: Mutex<RefCell<Option<Consumer<u8, 256>>>> = Mutex::new(RefCell::new(None));
 
+// Pins
+
+// Joystick: a0, a1, a2, a3
+// Sabertooth serial: d19 (rx), d18 (tx)
+
+// Active low
+// Sabertooth e-stop: d3
+// E-stop button: d2
+// Joystick-enable: d5
+
 #[arduino_hal::entry]
 fn main() -> ! {
     // This buffer will hold partially received packets
     let mut usb_buffer = Vec::<u8, { mem::size_of::<DownstreamMessage>() + 5 }>::new();
 
+
     // Setup up peripherals
     let dp = Peripherals::take().unwrap();
     let pins = pins!(dp);
+
+    // Emergency stop
+    let mut estop_out = pins.d3.into_output_high();
+    let estop_in = pins.d2.into_pull_up_input();
+
+    // Joysticks
     let mut adc = Adc::new(dp.ADC, Default::default());
+    let joystick = Joystick::new(pins.a0, pins.a1, pins.a2, pins.a3, &mut adc);
+    let joystick_enable = pins.d5.into_pull_up_input();
+
+    // Setup Serial
     let mut usb = default_serial!(dp, pins, common::BAUD_RATE_CTRL);
     let mut sabertooth = Usart::new(dp.USART1, pins.d19, pins.d18.into_output(), common::BAUD_RATE_SABERTOOTH.into_baudrate());
+    let mut usb_writer = {
+        // To improve reliability, we need to handle serial data as soon as it is received
+        usb.listen(Event::RxComplete);
 
-    // To improve reliability, we need to handle serial data as soon as it is received
-    usb.listen(Event::RxComplete);
+        // Split usb interface so the read component can be shared safely
+        let (usb_reader, usb_writer) = usb.split();
 
-    // Split usb interface so the read component can be shared safely
-    let (usb_reader, mut usb_writer) = usb.split();
+        // Initialize globals
+        interrupt::free(|cs| {
+            USB_READER_SERIAL.borrow(cs).borrow_mut().replace(usb_reader);
 
-    // Initialize globals
-    interrupt::free(|cs| {
-        USB_READER_SERIAL.borrow(cs).borrow_mut().replace(usb_reader);
+            let (usb_read_producer, usb_read_consumer) = unsafe { USB_READ_QUEUE.split() };
+            USB_READ_PRODUCER.borrow(cs).replace(Some(usb_read_producer));
+            USB_READ_CONSUMER.borrow(cs).replace(Some(usb_read_consumer));
 
-        let (usb_read_producer, usb_read_consumer) = unsafe { USB_READ_QUEUE.split() };
-        USB_READ_PRODUCER.borrow(cs).replace(Some(usb_read_producer));
-        USB_READ_CONSUMER.borrow(cs).replace(Some(usb_read_consumer));
+            atomic::compiler_fence(Ordering::SeqCst);
+        });
 
-        atomic::compiler_fence(Ordering::SeqCst);
-    });
+        usb_writer
+    };
 
-    // Setup joystick
-    let joystick = Joystick::new(pins.a0, pins.a1, pins.a2, pins.a3, &mut adc);
 
     // Start clock
     time::millis_init(dp.TC0);
@@ -151,17 +173,42 @@ fn main() -> ! {
 
         // Update joystick state
         {
-            let joystick_velocity = joystick.read(&mut adc);
-            state.update_joystick(joystick_velocity);
+            if joystick_enable.is_low() {
+                let joystick_velocity = joystick.read(&mut adc);
+                state.update_joystick(joystick_velocity);
+            } else {
+                state.update_joystick(VelocityData::default());
+            }
+        }
+
+        // Read emergency stop button
+        {
+            let emergency_stop = estop_in.is_low();
+            state.update_emergency_stop(emergency_stop);
+        }
+
+        // Tell the motor controllers to go into an emergency stop if necessary
+        {
+            if state.emergency_stop() {
+                // The sabertooth's emergency stop pin is active low
+                estop_out.set_low();
+            }
+
+            // Notify the connected pc
+            write_message(&UpstreamMessage::EStop(state.emergency_stop()), &mut usb_writer);
         }
 
         // Send updated motor speeds
         {
-            let VelocityData { forwards_left, forwards_right, strafing, vertical } = state.compute_velocity();
+            let total_velocity = state.compute_velocity();
+            let VelocityData { forwards_left, forwards_right, strafing, vertical } = total_velocity;
             write_callback(|buffer| sabertooth::write_speed(buffer, sabertooth::MOTOR_LEFT,     (forwards_left * 127.0) as i8),  &mut sabertooth);
             write_callback(|buffer| sabertooth::write_speed(buffer, sabertooth::MOTOR_RIGHT,    (forwards_right * 127.0) as i8), &mut sabertooth);
             write_callback(|buffer| sabertooth::write_speed(buffer, sabertooth::MOTOR_STRAFING, (strafing * 127.0) as i8),       &mut sabertooth);
             write_callback(|buffer| sabertooth::write_speed(buffer, sabertooth::MOTOR_VERTICAL, (vertical * 127.0) as i8),       &mut sabertooth);
+
+            // Notify the connected pc
+            write_message(&UpstreamMessage::TotalVelocity(total_velocity), &mut usb_writer);
         }
     }
 }

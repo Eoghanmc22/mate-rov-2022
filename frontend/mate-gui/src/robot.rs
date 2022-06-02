@@ -2,8 +2,8 @@ use std::thread;
 use bevy::prelude::*;
 use crossbeam::channel::{bounded, Receiver, Sender};
 use common::controller::DownstreamMessage;
-use sensor_fusion::state::RobotState;
-use crate::utils;
+use sensor_fusion::state::{MotorState, RobotState};
+use crate::{ui, utils};
 
 pub struct RobotPlugin;
 
@@ -12,17 +12,27 @@ impl Plugin for RobotPlugin {
         app
             .add_startup_system(serial_monitor)
             .add_event::<DataEvent>()
+            .add_event::<StateEvent>()
             .add_system(handler_data)
+            .add_system(handler_state)
             .add_system(update_displays)
             .add_system(reset_handler)
+            .add_system(estop_handler)
+            .add_system(estop_display)
         ;
     }
 }
 pub struct DataEvent(pub RobotState);
-pub struct Serial(Receiver<RobotState>, pub Sender<SerialNotification>, pub Sender<DownstreamMessage>);
+pub struct StateEvent(pub MotorState);
+pub struct Serial(Receiver<RobotState>, Receiver<MotorState>, pub Sender<SerialNotification>, pub Sender<DownstreamMessage>);
 
 #[derive(Component)]
 pub struct ResetButton;
+
+#[derive(Component)]
+pub struct EStopButton;
+#[derive(Component)]
+pub struct EStopText;
 
 #[derive(Component)]
 pub enum RobotData {
@@ -54,9 +64,10 @@ pub enum RobotData {
 }
 
 fn serial_monitor(mut commands: Commands) {
-    let (tx_data, rx_data) = bounded::<RobotState>(10);
-    let (tx_notification, rx_notification) = bounded::<SerialNotification>(10);
-    let (tx_command, rx_command) = bounded::<DownstreamMessage>(10);
+    let (tx_data, rx_data) = bounded::<RobotState>(15);
+    let (tx_state, rx_state) = bounded::<MotorState>(15);
+    let (tx_notification, rx_notification) = bounded::<SerialNotification>(15);
+    let (tx_command, rx_command) = bounded::<DownstreamMessage>(15);
 
     thread::Builder::new()
         .name("IMU Serial Monitor".to_owned())
@@ -65,22 +76,50 @@ fn serial_monitor(mut commands: Commands) {
 
     thread::Builder::new()
         .name("Controller Serial Monitor".to_owned())
-        .spawn(move || utils::error_boundary(|| communication::listen_to_controller(rx_command.clone())))
+        .spawn(move || utils::error_boundary(|| communication::listen_to_controller(tx_state.clone(), rx_command.clone())))
         .unwrap();
 
-    commands.insert_resource(Serial(rx_data, tx_notification, tx_command));
+    commands.insert_resource(Serial(rx_data, rx_state, tx_notification, tx_command));
 }
 
 fn handler_data(mut ev_data: EventWriter<DataEvent>, serial: Res<Serial>) {
-    for state in serial.0.try_iter().last().into_iter() {
-        ev_data.send(DataEvent(state));
+    for data in serial.0.try_iter().last().into_iter() {
+        ev_data.send(DataEvent(data));
+    }
+}
+
+fn handler_state(mut ev_state: EventWriter<StateEvent>, serial: Res<Serial>) {
+    for state in serial.1.try_iter().last().into_iter() {
+        ev_state.send(StateEvent(state));
     }
 }
 
 fn reset_handler(query: Query<&Interaction, (With<ResetButton>, Changed<Interaction>)>, serial: Res<Serial>) {
     for interaction in query.iter() {
         if let Interaction::Clicked = interaction {
-            serial.1.send(SerialNotification::ResetState).unwrap();
+            serial.2.send(SerialNotification::ResetState).unwrap();
+        }
+    }
+}
+
+fn estop_handler(query: Query<&Interaction, (With<EStopButton>, Changed<Interaction>)>, serial: Res<Serial>) {
+    for interaction in query.iter() {
+        if let Interaction::Clicked = interaction {
+            serial.3.send(DownstreamMessage::EmergencyStop).unwrap();
+        }
+    }
+}
+
+fn estop_display(mut query: Query<&mut Text, With<EStopText>>, mut ev_state: EventReader<StateEvent>) {
+    for StateEvent(state) in ev_state.iter() {
+        for mut text in query.iter_mut() {
+            for section in text.sections.iter_mut() {
+                if state.emergency_stop {
+                    section.style.color = ui::EMERGENCY_STOP_ACTIVE;
+                } else {
+                    section.style.color = Color::WHITE;
+                }
+            }
         }
     }
 }
@@ -188,6 +227,7 @@ pub enum SerialNotification {
 
 mod communication {
     use sensor_fusion::state;
+    use sensor_fusion::state::MotorState;
     use super::*;
 
     pub(super) fn listen_to_imu(tx_data: Sender<RobotState>, rx_notification: Receiver<SerialNotification>) -> anyhow::Result<!> {
@@ -211,9 +251,13 @@ mod communication {
         })
     }
 
-    pub(super) fn listen_to_controller(rx_command: Receiver<DownstreamMessage>) -> anyhow::Result<!> {
+    pub(super) fn listen_to_controller(tx_state: Sender<MotorState>, rx_command: Receiver<DownstreamMessage>) -> anyhow::Result<!> {
+        let mut state = MotorState::default();
+
         serial::controller::listen(move |message| {
-            state::handle_message(&message);
+            state::handle_message(&message, &mut state);
+
+            tx_state.send(state.clone())?;
 
             Ok(())
         }, Some(rx_command))

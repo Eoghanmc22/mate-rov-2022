@@ -62,7 +62,7 @@ fn gamepad_input(
 
     if let (Some(lx), Some(ly), Some(rx), Some(ry)) = (axes.get(axis_lx), axes.get(axis_ly), axes.get(axis_rx), axes.get(axis_ry)) {
         let velocity = common::joystick_math(lx, ly, rx, ry);
-        serial.2.send(DownstreamMessage::VelocityDataMessage(velocity)).unwrap();
+        serial.3.send(DownstreamMessage::VelocityUpdate(velocity)).unwrap();
     }
 
     // TODO maybe handle buttons

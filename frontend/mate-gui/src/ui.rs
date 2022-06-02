@@ -1,5 +1,6 @@
+use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
-use crate::{CameraDisplay, ResetButton};
+use crate::{CameraDisplay, EStopButton, EStopText, ResetButton};
 use crate::robot::RobotData;
 
 pub struct UiPlugin;
@@ -8,22 +9,30 @@ impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_startup_system(setup_ui)
-            .add_system(button_system);
+            .add_system(button_system)
+            .add_system(mouse_scroll)
+        ;
     }
 }
 
-const NORMAL_BUTTON: Color = Color::rgb(0.2, 0.2, 0.2);
-const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
-const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
-const CAMERA_BACKGROUND: Color = Color::rgb(0.3, 0.3, 0.3);
-const LEFT_PANEL_BACKGROUND: Color = Color::rgb(0.15, 0.15, 0.15);
-const LEFT_PANEL_BUTTON_BACKGROUND: Color = Color::rgb(0.4, 0.4, 0.4);
+pub const NORMAL_BUTTON: Color = Color::rgb(0.2, 0.2, 0.2);
+pub const HOVERED_BUTTON: Color = Color::rgb(0.25, 0.25, 0.25);
+pub const PRESSED_BUTTON: Color = Color::rgb(0.35, 0.75, 0.35);
+pub const CAMERA_BACKGROUND: Color = Color::rgb(0.3, 0.3, 0.3);
+pub const LEFT_PANEL_BACKGROUND: Color = Color::rgb(0.15, 0.15, 0.15);
+pub const LEFT_PANEL_BUTTON_BACKGROUND: Color = Color::rgb(0.4, 0.4, 0.4);
+pub const EMERGENCY_STOP_ACTIVE: Color = Color::rgb(1.0, 0.0, 0.0);
 
 #[derive(Component)]
 pub struct InfoPanel;
 
 #[derive(Component)]
 pub struct CameraSelectionPanel;
+
+#[derive(Component, Default)]
+struct ScrollingList {
+    position: f32,
+}
 
 fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
     // ui camera
@@ -37,6 +46,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             align_content: AlignContent::SpaceAround,
             ..default()
         },
+        color: LEFT_PANEL_BACKGROUND.into(),
         ..default()
     }).with_children(|parent| {
         // left panel
@@ -48,77 +58,96 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 align_content: AlignContent::FlexStart,
                 ..default()
             },
-            color: LEFT_PANEL_BACKGROUND.into(),
+            color: Color::NONE.into(),
             ..default()
-        }).with_children(|parent| {
-            parent.spawn_bundle(
-                create_rect(Val::Px(80.0))
-            ).with_children(|parent| {
-                parent.spawn_bundle(create_text("Acceleration: ", 20.0, &asset_server));
-                parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::AccelerationX);
-                parent.spawn_bundle(create_text("Y: ", 15.0, &asset_server)).insert(RobotData::AccelerationY);
-                parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::AccelerationZ);
-            });
+        }).insert(
+            ScrollingList::default()
+        ).with_children(|parent| {
+            parent.spawn_bundle(NodeBundle {
+                style: Style {
+                    flex_wrap: FlexWrap::WrapReverse,
+                    align_items: AlignItems::FlexStart,
+                    align_content: AlignContent::FlexStart,
+                    ..default()
+                },
+                color: Color::NONE.into(),
+                ..default()
+            }).with_children(|parent| {
+                parent.spawn_bundle(
+                    create_rect(Val::Px(80.0))
+                ).with_children(|parent| {
+                    parent.spawn_bundle(create_text("Acceleration: ", 20.0, &asset_server));
+                    parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::AccelerationX);
+                    parent.spawn_bundle(create_text("Y: ", 15.0, &asset_server)).insert(RobotData::AccelerationY);
+                    parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::AccelerationZ);
+                });
 
-            parent.spawn_bundle(
-                create_rect(Val::Px(80.0))
-            ).with_children(|parent| {
-                parent.spawn_bundle(create_text("Velocity: ", 20.0, &asset_server));
-                parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::VelocityX);
-                parent.spawn_bundle(create_text("Y: ", 15.0, &asset_server)).insert(RobotData::VelocityY);
-                parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::VelocityZ);
-            });
+                parent.spawn_bundle(
+                    create_rect(Val::Px(80.0))
+                ).with_children(|parent| {
+                    parent.spawn_bundle(create_text("Velocity: ", 20.0, &asset_server));
+                    parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::VelocityX);
+                    parent.spawn_bundle(create_text("Y: ", 15.0, &asset_server)).insert(RobotData::VelocityY);
+                    parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::VelocityZ);
+                });
 
-            parent.spawn_bundle(
-                create_rect(Val::Px(80.0))
-            ).with_children(|parent| {
-                parent.spawn_bundle(create_text("Position: ", 20.0, &asset_server));
-                parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::PositionX);
-                parent.spawn_bundle(create_text("Y: ", 15.0, &asset_server)).insert(RobotData::PositionY);
-                parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::PositionZ);
-            });
-            parent.spawn_bundle(create_divider());
+                parent.spawn_bundle(
+                    create_rect(Val::Px(80.0))
+                ).with_children(|parent| {
+                    parent.spawn_bundle(create_text("Position: ", 20.0, &asset_server));
+                    parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::PositionX);
+                    parent.spawn_bundle(create_text("Y: ", 15.0, &asset_server)).insert(RobotData::PositionY);
+                    parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::PositionZ);
+                });
+                parent.spawn_bundle(create_divider());
 
-            parent.spawn_bundle(
-                create_rect(Val::Px(80.0))
-            ).with_children(|parent| {
-                parent.spawn_bundle(create_text("Angular Velocity: ", 20.0, &asset_server));
-                parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::GyroVelocityX);
-                parent.spawn_bundle(create_text("Y: ", 15.0, &asset_server)).insert(RobotData::GyroVelocityY);
-                parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::GyroVelocityZ);
-            });
+                parent.spawn_bundle(
+                    create_rect(Val::Px(80.0))
+                ).with_children(|parent| {
+                    parent.spawn_bundle(create_text("Angular Velocity: ", 20.0, &asset_server));
+                    parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::GyroVelocityX);
+                    parent.spawn_bundle(create_text("Y: ", 15.0, &asset_server)).insert(RobotData::GyroVelocityY);
+                    parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::GyroVelocityZ);
+                });
 
-            parent.spawn_bundle(
-                create_rect(Val::Px(80.0))
-            ).with_children(|parent| {
-                parent.spawn_bundle(create_text("Angle: ", 20.0, &asset_server));
-                parent.spawn_bundle(create_text("Yaw: ", 15.0, &asset_server)).insert(RobotData::GyroAngleX);
-                parent.spawn_bundle(create_text("Pitch: ", 15.0, &asset_server)).insert(RobotData::GyroAngleY);
-                parent.spawn_bundle(create_text("Roll: ", 15.0, &asset_server)).insert(RobotData::GyroAngleZ);
-            });
-            parent.spawn_bundle(create_divider());
+                parent.spawn_bundle(
+                    create_rect(Val::Px(80.0))
+                ).with_children(|parent| {
+                    parent.spawn_bundle(create_text("Angle: ", 20.0, &asset_server));
+                    parent.spawn_bundle(create_text("Yaw: ", 15.0, &asset_server)).insert(RobotData::GyroAngleX);
+                    parent.spawn_bundle(create_text("Pitch: ", 15.0, &asset_server)).insert(RobotData::GyroAngleY);
+                    parent.spawn_bundle(create_text("Roll: ", 15.0, &asset_server)).insert(RobotData::GyroAngleZ);
+                });
+                parent.spawn_bundle(create_divider());
 
-            parent.spawn_bundle(
-                create_rect(Val::Px(80.0))
-            ).with_children(|parent| {
-                parent.spawn_bundle(create_text("Mag: ", 20.0, &asset_server));
-                parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::MagX);
-                parent.spawn_bundle(create_text("Y: ", 15.0, &asset_server)).insert(RobotData::MagY);
-                parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::MagZ);
-            });
+                parent.spawn_bundle(
+                    create_rect(Val::Px(80.0))
+                ).with_children(|parent| {
+                    parent.spawn_bundle(create_text("Mag: ", 20.0, &asset_server));
+                    parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::MagX);
+                    parent.spawn_bundle(create_text("Y: ", 15.0, &asset_server)).insert(RobotData::MagY);
+                    parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::MagZ);
+                });
 
-            parent.spawn_bundle(
-                create_rect(Val::Px(80.0))
-            ).with_children(|parent| {
-                parent.spawn_bundle(create_text("Pressure: ", 20.0, &asset_server));
-                parent.spawn_bundle(create_text("", 15.0, &asset_server)).insert(RobotData::Pressure);
-            });
+                parent.spawn_bundle(
+                    create_rect(Val::Px(80.0))
+                ).with_children(|parent| {
+                    parent.spawn_bundle(create_text("Pressure: ", 20.0, &asset_server));
+                    parent.spawn_bundle(create_text("", 15.0, &asset_server)).insert(RobotData::Pressure);
+                });
 
-            parent.spawn_bundle(
-                create_button()
-            ).with_children(|parent| {
-                parent.spawn_bundle(create_text("Reset State", 20.0, &asset_server));
-            }).insert(ResetButton);
+                parent.spawn_bundle(
+                    create_button()
+                ).with_children(|parent| {
+                    parent.spawn_bundle(create_text("Reset State", 20.0, &asset_server));
+                }).insert(ResetButton);
+
+                parent.spawn_bundle(
+                    create_button()
+                ).with_children(|parent| {
+                    parent.spawn_bundle(create_text("Emergency Stop", 20.0, &asset_server)).insert(EStopText);
+                }).insert(EStopButton);
+            });
         });
 
         // center panel
@@ -184,6 +213,31 @@ fn button_system(
             Interaction::None => {
                 *color = NORMAL_BUTTON.into();
             }
+        }
+    }
+}
+
+fn mouse_scroll(
+    mut mouse_wheel_events: EventReader<MouseWheel>,
+    mut query_list: Query<(&mut ScrollingList, &mut Style, &Children, &Node)>,
+    node_query: Query<&Node>,
+) {
+    for mouse_wheel_event in mouse_wheel_events.iter() {
+        for (mut scrolling_list, mut style, children, uinode) in query_list.iter_mut() {
+            let items_height: f32 = children
+                .iter()
+                .map(|entity| node_query.get(*entity).unwrap().size.y)
+                .sum();
+
+            let panel_height = uinode.size.y;
+            let max_scroll = (items_height - panel_height).max(0.0);
+            let dy = match mouse_wheel_event.unit {
+                MouseScrollUnit::Line => mouse_wheel_event.y * 20.0,
+                MouseScrollUnit::Pixel => mouse_wheel_event.y,
+            };
+            scrolling_list.position += dy;
+            scrolling_list.position = scrolling_list.position.clamp(-max_scroll, 0.0);
+            style.position.top = Val::Px(scrolling_list.position);
         }
     }
 }
