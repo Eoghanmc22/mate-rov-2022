@@ -19,7 +19,7 @@ impl Plugin for RobotPlugin {
     }
 }
 pub struct DataEvent(pub RobotState);
-struct Serial(Receiver<RobotState>, Sender<SerialNotification>, Sender<DownstreamMessage>);
+pub struct Serial(Receiver<RobotState>, pub Sender<SerialNotification>, pub Sender<DownstreamMessage>);
 
 #[derive(Component)]
 pub struct ResetButton;
@@ -67,6 +67,21 @@ fn serial_monitor(mut commands: Commands) {
         .name("Controller Serial Monitor".to_owned())
         .spawn(move || utils::error_boundary(|| communication::listen_to_controller(rx_command.clone())))
         .unwrap();
+
+    //TODO REMOVE THIS
+    {
+        let tx_command = tx_command.clone();
+        thread::spawn(move || {
+            loop {
+                tx_command.send(DownstreamMessage::VelocityDataMessage(common::controller::VelocityData {
+                    forwards_left: 4.0,
+                    forwards_right: 3.0,
+                    strafing: 2.0,
+                    vertical: 1.0
+                })).unwrap();
+            }
+        });
+    }
 
     commands.insert_resource(Serial(rx_data, tx_notification, tx_command));
 }
