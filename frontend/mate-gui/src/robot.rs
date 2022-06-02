@@ -194,8 +194,6 @@ mod communication {
             for command in rx_notification.try_iter() {
                 match command {
                     SerialNotification::ResetState => {
-                        start = Instant::now();
-                        messages = 0;
                         state.reset();
                     }
                 }
