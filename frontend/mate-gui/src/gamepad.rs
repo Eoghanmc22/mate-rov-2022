@@ -60,7 +60,16 @@ fn gamepad_input(
     let axis_rx = GamepadAxis(gamepad, GamepadAxisType::RightStickX);
     let axis_ry = GamepadAxis(gamepad, GamepadAxisType::RightStickY);
 
+    let up_button = GamepadButton(gamepad, GamepadButtonType::RightTrigger);
+    let down_button = GamepadButton(gamepad, GamepadButtonType::LeftTrigger);
+
     if let (Some(lx), Some(ly), Some(rx), Some(ry)) = (axes.get(axis_lx), axes.get(axis_ly), axes.get(axis_rx), axes.get(axis_ry)) {
+        let ry = {
+            let up = if buttons.pressed(up_button) { 1.0 } else { 0.0 };
+            let down = if buttons.pressed(down_button) { -1.0 } else { 0.0 };
+            up + down + ry
+        };
+
         let velocity = common::joystick_math(lx, ly, rx, ry);
         serial.3.send(DownstreamMessage::VelocityUpdate(velocity)).unwrap();
     }
