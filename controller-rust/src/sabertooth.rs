@@ -30,7 +30,7 @@ pub fn write_speed(buffer: &mut [u8], motor: Motor, speed: i8) -> Result<&mut [u
         buffer.write_byte(speed as u8)?;
     } else {
         buffer.write_byte(motor.1 + 1)?;
-        buffer.write_byte(-(speed.max(-127)) as u8)?;
+        buffer.write_byte(speed.saturating_neg() as u8)?;
     }
 
     buffer.write_checksum()
