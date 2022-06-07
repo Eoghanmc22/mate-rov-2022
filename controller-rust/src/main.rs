@@ -61,13 +61,14 @@ static USB_READ_CONSUMER: Mutex<RefCell<Option<Consumer<u8, 256>>>> = Mutex::new
 
 // Pins
 
-// Joystick: a0, a1, a2, a3
-// Sabertooth serial: d19 (rx), d18 (tx)
+// Joystick: a1, a0, a3, a2
+// Sabertooth serial: none (rx), d18 (tx)
 
 // Active low
-// Sabertooth e-stop: d3
-// E-stop button: d2
-// Joystick-enable: d5
+// Sabertooth e-stop 1: d8
+// Sabertooth e-stop 2: d9
+// E-stop button: d22
+// Joystick-enable: d30
 
 #[arduino_hal::entry]
 fn main() -> ! {
@@ -80,13 +81,14 @@ fn main() -> ! {
     let pins = pins!(dp);
 
     // Emergency stop
-    let mut estop_out = pins.d3.into_output_high();
-    let estop_in = pins.d2.into_pull_up_input();
+    let mut estop_out_a = pins.d8.into_output_high();
+    let mut estop_out_b = pins.d9.into_output_high();
+    let estop_in = pins.d22.into_pull_up_input();
 
     // Joysticks
     let mut adc = Adc::new(dp.ADC, Default::default());
-    let joystick = Joystick::new(pins.a0, pins.a1, pins.a2, pins.a3, &mut adc);
-    let joystick_enable = pins.d5.into_pull_up_input();
+    let joystick = Joystick::new(pins.a1, pins.a0, pins.a3, pins.a2, &mut adc);
+    let joystick_enable = pins.d30.into_pull_up_input();
 
     // Setup Serial
     let mut usb = default_serial!(dp, pins, common::BAUD_RATE_CTRL);
@@ -191,7 +193,8 @@ fn main() -> ! {
         {
             if state.emergency_stop() {
                 // The sabertooth's emergency stop pin is active low
-                estop_out.set_low();
+                estop_out_a.set_low();
+                estop_out_b.set_low();
             }
 
             // Notify the connected pc
