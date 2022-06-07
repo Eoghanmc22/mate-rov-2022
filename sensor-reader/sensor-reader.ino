@@ -23,6 +23,7 @@ void loop() {
     Serial.print((int) buff[3] << 8 | buff[2]);
     Serial.print(",");
     Serial.print((int) buff[5] << 8 | buff[4]);
+    handleZero();
 
     // Read gyro data
     readGYR(buff);
@@ -32,6 +33,7 @@ void loop() {
     Serial.print((int) buff[3] << 8 | buff[2]);
     Serial.print(",");
     Serial.print((int) buff[5] << 8 | buff[4]);
+    handleZero();
 
     // Read magnetometer data
     readMAG(buff);
@@ -41,6 +43,7 @@ void loop() {
     Serial.print((int) buff[3] << 8 | buff[2]);
     Serial.print(",");
     Serial.print((int) buff[5] << 8 | buff[4]);
+    handleZero();
 
     // Read pressure data
     Serial.print(" P");
@@ -59,4 +62,15 @@ void loop() {
     Serial.print(" E");
     Serial.print(millis() - startTime);
     Serial.print('\n');
+}
+
+void handleZero() {
+    for (int i = 0; i < 6; i++) {
+        if (buff[i] != 0) {
+            return;
+        }
+    }
+
+    void(* resetFunc) (void) = 0;
+    resetFunc();
 }
