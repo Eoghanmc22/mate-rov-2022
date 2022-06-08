@@ -58,7 +58,6 @@ pub fn handle_message(message: &UpstreamMessage, state: &mut MotorState) {
             state.emergency_stop = *emergency_stop;
         }
         UpstreamMessage::TotalVelocity(velocity) => {
-            println!("velocity: {:?}", velocity);
             state.total_velocity = velocity.clone();
         }
     }

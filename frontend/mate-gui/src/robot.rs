@@ -15,7 +15,8 @@ impl Plugin for RobotPlugin {
             .add_event::<StateEvent>()
             .add_system(handler_data)
             .add_system(handler_state)
-            .add_system(update_displays)
+            .add_system(update_displays_imu)
+            .add_system(update_displays_controller)
             .add_system(reset_handler)
             .add_system(estop_handler)
             .add_system(estop_display)
@@ -61,6 +62,14 @@ pub enum RobotData {
     MagZ,
 
     Pressure
+}
+
+#[derive(Component)]
+pub enum ControllerData {
+    SpeedSpForwardsLeft,
+    SpeedSpForwardsRight,
+    SpeedSpStrafing,
+    SpeedSpVertical,
 }
 
 fn serial_monitor(mut commands: Commands) {
@@ -124,14 +133,15 @@ fn estop_display(mut query: Query<&mut Text, With<EStopText>>, mut ev_state: Eve
     }
 }
 
-fn update_displays(mut query: Query<(&mut Text, &RobotData)>, mut ev_data: EventReader<DataEvent>) {
+fn update_displays_imu(mut query: Query<(&mut Text, &RobotData)>, mut ev_data: EventReader<DataEvent>) {
     for DataEvent(state) in ev_data.iter() {
         for (mut text, data) in query.iter_mut() {
             if text.sections.len() == 1 {
                 let mut new_section = text.sections[0].clone();
                 new_section.value = String::new();
                 text.sections.push(new_section);
-            } else if text.sections.len() == 2 {
+            }
+            if text.sections.len() == 2 {
                 match data {
                     RobotData::AccelerationX => {
                         let section = &mut text.sections[1];
@@ -213,7 +223,39 @@ fn update_displays(mut query: Query<(&mut Text, &RobotData)>, mut ev_data: Event
 
                     RobotData::Pressure => {
                         let section = &mut text.sections[1];
-                        section.value = format!("Psi: {:.2}", state.pressure);
+                        section.value = format!("{:.2}", state.pressure);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn update_displays_controller(mut query: Query<(&mut Text, &ControllerData)>, mut ev_data: EventReader<StateEvent>) {
+    for StateEvent(state) in ev_data.iter() {
+        for (mut text, data) in query.iter_mut() {
+            if text.sections.len() == 1 {
+                let mut new_section = text.sections[0].clone();
+                new_section.value = String::new();
+                text.sections.push(new_section);
+            }
+            if text.sections.len() == 2 {
+                match data {
+                    ControllerData::SpeedSpForwardsLeft => {
+                        let section = &mut text.sections[1];
+                        section.value = format!("{:.2}", state.total_velocity.forwards_left);
+                    }
+                    ControllerData::SpeedSpForwardsRight => {
+                        let section = &mut text.sections[1];
+                        section.value = format!("{:.2}", state.total_velocity.forwards_right);
+                    }
+                    ControllerData::SpeedSpStrafing => {
+                        let section = &mut text.sections[1];
+                        section.value = format!("{:.2}", state.total_velocity.strafing);
+                    }
+                    ControllerData::SpeedSpVertical => {
+                        let section = &mut text.sections[1];
+                        section.value = format!("{:.2}", state.total_velocity.vertical);
                     }
                 }
             }

@@ -1,6 +1,6 @@
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
-use crate::{CameraDisplay, EStopButton, EStopText, ResetButton};
+use crate::{CameraDisplay, ControllerData, EStopButton, EStopText, ResetButton};
 use crate::robot::RobotData;
 
 pub struct UiPlugin;
@@ -74,7 +74,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ..default()
             }).with_children(|parent| {
                 parent.spawn_bundle(
-                    create_rect(Val::Px(80.0))
+                    create_rect()
                 ).with_children(|parent| {
                     parent.spawn_bundle(create_text("Acceleration: ", 20.0, &asset_server));
                     parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::AccelerationX);
@@ -83,7 +83,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 });
 
                 parent.spawn_bundle(
-                    create_rect(Val::Px(80.0))
+                    create_rect()
                 ).with_children(|parent| {
                     parent.spawn_bundle(create_text("Velocity: ", 20.0, &asset_server));
                     parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::VelocityX);
@@ -92,7 +92,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 });
 
                 parent.spawn_bundle(
-                    create_rect(Val::Px(80.0))
+                    create_rect()
                 ).with_children(|parent| {
                     parent.spawn_bundle(create_text("Position: ", 20.0, &asset_server));
                     parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::PositionX);
@@ -102,7 +102,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 parent.spawn_bundle(create_divider());
 
                 parent.spawn_bundle(
-                    create_rect(Val::Px(80.0))
+                    create_rect()
                 ).with_children(|parent| {
                     parent.spawn_bundle(create_text("Angular Velocity: ", 20.0, &asset_server));
                     parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::GyroVelocityX);
@@ -111,7 +111,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 });
 
                 parent.spawn_bundle(
-                    create_rect(Val::Px(80.0))
+                    create_rect()
                 ).with_children(|parent| {
                     parent.spawn_bundle(create_text("Angle: ", 20.0, &asset_server));
                     parent.spawn_bundle(create_text("Yaw: ", 15.0, &asset_server)).insert(RobotData::GyroAngleX);
@@ -121,7 +121,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 parent.spawn_bundle(create_divider());
 
                 parent.spawn_bundle(
-                    create_rect(Val::Px(80.0))
+                    create_rect()
                 ).with_children(|parent| {
                     parent.spawn_bundle(create_text("Mag: ", 20.0, &asset_server));
                     parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::MagX);
@@ -130,10 +130,20 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 });
 
                 parent.spawn_bundle(
-                    create_rect(Val::Px(80.0))
+                    create_rect()
+                ).with_children(|parent| {
+                    parent.spawn_bundle(create_text("Motor Speeds: ", 20.0, &asset_server));
+                    parent.spawn_bundle(create_text("Left: ", 15.0, &asset_server)).insert(ControllerData::SpeedSpForwardsLeft);
+                    parent.spawn_bundle(create_text("Right: ", 15.0, &asset_server)).insert(ControllerData::SpeedSpForwardsRight);
+                    parent.spawn_bundle(create_text("Strafing: ", 15.0, &asset_server)).insert(ControllerData::SpeedSpStrafing);
+                    parent.spawn_bundle(create_text("Vertical: ", 15.0, &asset_server)).insert(ControllerData::SpeedSpVertical);
+                });
+
+                parent.spawn_bundle(
+                    create_rect()
                 ).with_children(|parent| {
                     parent.spawn_bundle(create_text("Pressure: ", 20.0, &asset_server));
-                    parent.spawn_bundle(create_text("", 15.0, &asset_server)).insert(RobotData::Pressure);
+                    parent.spawn_bundle(create_text("Psi: ", 15.0, &asset_server)).insert(RobotData::Pressure);
                 });
 
                 parent.spawn_bundle(
@@ -242,10 +252,10 @@ fn mouse_scroll(
     }
 }
 
-pub fn create_rect(height: Val) -> impl Bundle {
+pub fn create_rect() -> impl Bundle {
     NodeBundle {
         style: Style {
-            size: Size::new(Val::Percent(100.0), height),
+            size: Size::new(Val::Percent(100.0), Val::Auto),
             margin: Rect::all(Val::Px(5.0)),
             padding: Rect::all(Val::Px(5.0)),
             flex_wrap: FlexWrap::WrapReverse,
