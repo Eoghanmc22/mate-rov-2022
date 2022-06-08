@@ -125,7 +125,9 @@ fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], l
             *last_end = removed;
         }
         Err(e) => {
-            assert_eq!(e.kind(), io::ErrorKind::TimedOut);
+            if e.kind() != io::ErrorKind::TimedOut {
+                Err::<(), _>(e).unwrap();
+            }
         }
     }
 

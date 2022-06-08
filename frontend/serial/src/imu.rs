@@ -66,7 +66,9 @@ pub fn listen_to_port<F: FnMut(IMUFrame) -> anyhow::Result<()>>(port: &str, mut 
                 last_end = removed;
             }
             Err(e) => {
-                assert_eq!(e.kind(), io::ErrorKind::TimedOut);
+                if e.kind() != io::ErrorKind::TimedOut {
+                    Err::<(), _>(e).unwrap();
+                }
             }
         }
     }
