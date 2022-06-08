@@ -130,7 +130,7 @@ fn main() -> ! {
     write_message(&UpstreamMessage::Init, &mut usb_writer);
 
     let mut watchdog = wdt::Wdt::new(dp.WDT, &dp.CPU.mcusr);
-    watchdog.start(wdt::Timeout::Ms32).unwrap();
+    watchdog.start(wdt::Timeout::Ms64).unwrap();
 
     let mut state = State::default();
     loop {
