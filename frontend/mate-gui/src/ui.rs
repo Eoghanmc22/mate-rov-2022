@@ -82,7 +82,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::AccelerationZ);
                 });
 
-                parent.spawn_bundle(
+                /*parent.spawn_bundle(
                     create_rect()
                 ).with_children(|parent| {
                     parent.spawn_bundle(create_text("Velocity: ", 20.0, &asset_server));
@@ -98,7 +98,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::PositionX);
                     parent.spawn_bundle(create_text("Y: ", 15.0, &asset_server)).insert(RobotData::PositionY);
                     parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::PositionZ);
-                });
+                });*/
                 parent.spawn_bundle(create_divider());
 
                 parent.spawn_bundle(
