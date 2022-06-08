@@ -1,4 +1,5 @@
 #include "IMU.h"
+#include <avr/wdt.h>
 
 #define DT 10  // Loop time [ms]
 
@@ -6,13 +7,17 @@ byte buff[6];
 unsigned long startTime;
 
 void setup() {
+    wdt_disable();
     Serial.begin(57600);  // start serial for output
 
     initCommunication();
     enableIMU();
+    wdt_enable(WDTO_30MS);
 }
 
 void loop() {
+    wdt_reset();
+
     startTime = millis();
 
     // Read accelerator data
@@ -70,7 +75,8 @@ void handleZero() {
             return;
         }
     }
-
+        
+    // illegal function causes reset
     void(* resetFunc) (void) = 0;
     resetFunc();
 }
