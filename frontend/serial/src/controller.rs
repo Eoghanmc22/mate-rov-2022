@@ -4,7 +4,7 @@ use serialport::{ClearBuffer, SerialPort, SerialPortInfo, SerialPortType};
 use std::{io, thread};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use anyhow::bail;
+use anyhow::{bail, Context};
 use crossbeam::channel::Receiver;
 
 fn get_port() -> anyhow::Result<Option<SerialPortInfo>> {
@@ -32,7 +32,7 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + '
     let mut port = serialport::new(port, common::BAUD_RATE_CTRL)
         .timeout(Duration::from_millis(1))
         .open_native()
-        .expect("Failed to open port");
+        .context("Failed to open port")?;
 
     port.clear(ClearBuffer::All)?;
 

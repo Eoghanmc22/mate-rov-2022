@@ -3,12 +3,12 @@ use std::thread;
 use std::time::Duration;
 
 /// Runs a function forever.
-/// Catches panics and errors
-pub fn error_boundary<F: Fn() -> anyhow::Result<!> + UnwindSafe + RefUnwindSafe>(function: F) -> ! {
+/// Catches errors but not panics
+pub fn error_boundary<F: Fn() -> anyhow::Result<!>>(function: F) -> ! {
     loop {
-        let result = std::panic::catch_unwind(&function);
+        let result = (function)();
 
-        if let Ok(Err(error)) = result {
+        if let Err(error) = result {
             let thread = thread::current();
             let name = thread.name().unwrap_or("unnamed");
             eprintln!("{} thread encountered an error, message: {:?}", name, error);
