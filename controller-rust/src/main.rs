@@ -25,6 +25,7 @@ use core::sync::atomic::Ordering;
 use arduino_hal::{Adc, default_serial, delay_ms, Peripherals, pins, Usart};
 use arduino_hal::hal::port::{PE0, PE1};
 use arduino_hal::hal::usart::Event;
+use arduino_hal::hal::wdt;
 use arduino_hal::port::mode::{Input, Output};
 use arduino_hal::port::Pin;
 use arduino_hal::usart::UsartReader;
@@ -128,6 +129,9 @@ fn main() -> ! {
     // Notify the connected pc that we are ready to receive data
     write_message(&UpstreamMessage::Init, &mut usb_writer);
 
+    let mut watchdog = wdt::Wdt::new(dp.WDT, &dp.CPU.mcusr);
+    watchdog.start(wdt::Timeout::Ms32).unwrap();
+
     let mut state = State::default();
     loop {
         // process data from computer
@@ -213,6 +217,8 @@ fn main() -> ! {
             // Notify the connected pc
             write_message(&UpstreamMessage::TotalVelocity(total_velocity), &mut usb_writer);
         }
+
+        watchdog.feed();
     }
 }
 
