@@ -97,7 +97,7 @@ fn handler_state(mut ev_state: EventWriter<StateEvent>, serial: Res<Serial>) {
 fn reset_handler(query: Query<&Interaction, (With<ResetButton>, Changed<Interaction>)>, serial: Res<Serial>) {
     for interaction in query.iter() {
         if let Interaction::Clicked = interaction {
-            serial.2.send(SerialNotification::ResetState).unwrap();
+            let _ = serial.2.try_send(SerialNotification::ResetState);
         }
     }
 }
@@ -105,7 +105,7 @@ fn reset_handler(query: Query<&Interaction, (With<ResetButton>, Changed<Interact
 fn estop_handler(query: Query<&Interaction, (With<EStopButton>, Changed<Interaction>)>, serial: Res<Serial>) {
     for interaction in query.iter() {
         if let Interaction::Clicked = interaction {
-            serial.3.send(DownstreamMessage::EmergencyStop).unwrap();
+            let _ = serial.3.try_send(DownstreamMessage::EmergencyStop);
         }
     }
 }
@@ -245,7 +245,7 @@ mod communication {
 
             state::update_state(&frame, &mut state);
 
-            tx_data.send(state.clone())?;
+            tx_data.send(state.clone()).unwrap();
 
             Ok(())
         })
@@ -257,7 +257,7 @@ mod communication {
         serial::controller::listen(move |message| {
             state::handle_message(&message, &mut state);
 
-            tx_state.send(state.clone())?;
+            tx_state.send(state.clone()).unwrap();
 
             Ok(())
         }, Some(rx_command))

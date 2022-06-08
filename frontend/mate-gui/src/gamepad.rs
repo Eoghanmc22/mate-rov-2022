@@ -71,7 +71,7 @@ fn gamepad_input(
         };
 
         let velocity = common::joystick_math(lx, ly, rx, ry);
-        serial.3.send(DownstreamMessage::VelocityUpdate(velocity)).unwrap();
+        let _ = serial.3.try_send(DownstreamMessage::VelocityUpdate(velocity));
     }
 
     // TODO maybe handle buttons
