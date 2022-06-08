@@ -61,7 +61,6 @@ static USB_READ_PRODUCER: Mutex<RefCell<Option<Producer<u8, 256>>>> = Mutex::new
 static USB_READ_CONSUMER: Mutex<RefCell<Option<Consumer<u8, 256>>>> = Mutex::new(RefCell::new(None));
 
 // Pins
-
 // Joystick: a1, a0, a3, a2
 // Sabertooth serial: none (rx), d18 (tx)
 
