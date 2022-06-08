@@ -1,17 +1,17 @@
 use common::CommunicationError;
 
-// Address, Command
-pub struct Motor(u8, u8);
+// Address, Command, sign
+pub struct Motor(u8, u8, i8);
 
 // Addresses for both sabertooth motor controllers
 pub const SABERTOOTH_A: u8 = 128;
 pub const SABERTOOTH_B: u8 = 129;
 
 // Motor addresses and ids
-pub const MOTOR_RIGHT: Motor = Motor(SABERTOOTH_A, 0);
-pub const MOTOR_LEFT: Motor = Motor(SABERTOOTH_A, 4);
-pub const MOTOR_VERTICAL: Motor = Motor(SABERTOOTH_B, 0);
-pub const MOTOR_STRAFING: Motor = Motor(SABERTOOTH_B, 4);
+pub const MOTOR_RIGHT: Motor = Motor(SABERTOOTH_A, 0, 1);
+pub const MOTOR_LEFT: Motor = Motor(SABERTOOTH_A, 4, 1);
+pub const MOTOR_VERTICAL: Motor = Motor(SABERTOOTH_B, 0, 1);
+pub const MOTOR_STRAFING: Motor = Motor(SABERTOOTH_B, 4, 1);
 
 /// Writes the auto bauding char
 pub fn write_init(buffer: &mut [u8]) -> Result<&mut [u8], CommunicationError> {
@@ -25,6 +25,7 @@ pub fn write_speed(buffer: &mut [u8], motor: Motor, speed: i8) -> Result<&mut [u
     let mut buffer = Buffer::new(buffer);
     buffer.write_byte(motor.0)?;
 
+    let speed = speed * motor.2;
     if speed >= 0 {
         buffer.write_byte(motor.1)?;
         buffer.write_byte(speed as u8)?;
