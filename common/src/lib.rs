@@ -49,9 +49,10 @@ mod test {
     use core::mem::MaybeUninit;
     use crate::controller::{DownstreamMessage, VelocityData};
     use crate::{read, write};
+    use crate::map_val;
 
     #[test]
-    fn test() {
+    fn test_communication() {
         let mut buffer : [u8; 200] = unsafe { MaybeUninit::uninit().assume_init() };
 
         let command = DownstreamMessage::VelocityUpdate(VelocityData {
@@ -72,6 +73,28 @@ mod test {
                 assert_eq!(data.vertical, 1.0);
             }
             _ => { panic!() }
+        }
+    }
+
+    #[test]
+    fn test_wrap_val() {
+        let cases = [
+            (-1.1, -1.0),
+            (-1.0, -1.0),
+            (-0.95, -1.0),
+            (-0.5, -0.5),
+            (-0.05, 0.0),
+            (0.0, 0.0),
+            (0.05, 0.0),
+            (0.5, 0.5),
+            (0.95, 1.0),
+            (1.0, 1.0),
+            (1.1, 1.0),
+        ];
+
+        for (test, expected) in cases {
+            let val = map_val(test, 0.95, 0.05);
+            assert_eq!(val, expected);
         }
     }
 }
@@ -113,4 +136,10 @@ pub fn joystick_math(lx: f32, ly: f32, rx: f32, ry: f32) -> VelocityData {
         strafing,
         vertical
     }.clamp()
+}
+
+pub fn map_val(val: f32, min: f32, max: f32) -> f32 {
+    let v = val.abs().clamp(min, max);
+    let v = (v - min) / (max - min);
+    v.copysign(val)
 }
