@@ -38,8 +38,8 @@ impl<Lx, Ly, Rx, Ry> Joystick<Lx, Ly, Rx, Ry>
     pub fn read(&self, adc: &mut Adc) -> VelocityData {
         const ADC_SCALE: f32 = 1023.0;
 
-        let max = 0.95;
-        let min = 0.05;
+        let max = 0.93;
+        let min = 0.07;
 
         let lx = self.left_x.analog_read(adc) as f32 / ADC_SCALE * 2.0 - 1.0;
         let ly = self.left_y.analog_read(adc) as f32 / ADC_SCALE * 2.0 - 1.0;
