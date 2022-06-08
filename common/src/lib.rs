@@ -49,7 +49,7 @@ mod test {
     use core::mem::MaybeUninit;
     use crate::controller::{DownstreamMessage, VelocityData};
     use crate::{read, write};
-    use crate::map_val;
+    use crate::clamp_map_val;
 
     #[test]
     fn test_communication() {
@@ -93,7 +93,7 @@ mod test {
         ];
 
         for (test, expected) in cases {
-            let val = map_val(test, 0.95, 0.05);
+            let val = clamp_map_val(test, 0.05, 0.95);
             assert_eq!(val, expected);
         }
     }
@@ -138,8 +138,16 @@ pub fn joystick_math(lx: f32, ly: f32, rx: f32, ry: f32) -> VelocityData {
     }.clamp()
 }
 
-pub fn map_val(val: f32, min: f32, max: f32) -> f32 {
-    let v = val.abs().clamp(min, max);
+pub fn clamp_map_val(val: f32, min: f32, max: f32) -> f32 {
+    let v = abs(val).clamp(min, max);
     let v = (v - min) / (max - min);
-    v.copysign(val)
+    copysign(v, val)
+}
+
+pub fn abs(val: f32) -> f32 {
+    if val >= 0.0 { val } else { -val }
+}
+
+pub fn copysign(val: f32, sign: f32) -> f32 {
+    if sign >= 0.0 { abs(val) } else { -abs(val) }
 }
