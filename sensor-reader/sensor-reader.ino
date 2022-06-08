@@ -5,14 +5,16 @@
 
 byte buff[6];
 unsigned long startTime;
+int badCount;
 
 void setup() {
     wdt_disable();
     Serial.begin(57600);  // start serial for output
+    badCount = 0;
 
     initCommunication();
     enableIMU();
-    wdt_enable(WDTO_30MS);
+    wdt_enable(WDTO_120MS);
 }
 
 void loop() {
@@ -72,11 +74,16 @@ void loop() {
 void handleZero() {
     for (int i = 0; i < 6; i++) {
         if (buff[i] != 0) {
+            badCount = 0;
             return;
         }
     }
-        
-    // illegal function causes reset
-    void(* resetFunc) (void) = 0;
-    resetFunc();
+
+    badCount++;
+
+    if (badCount > 5) {
+         // illegal function causes reset
+         void(* resetFunc) (void) = 0;
+         resetFunc();
+    }
 }
