@@ -25,7 +25,7 @@ pub fn write_speed(buffer: &mut [u8], motor: Motor, speed: i8) -> Result<&mut [u
     let mut buffer = Buffer::new(buffer);
     buffer.write_byte(motor.0)?;
 
-    if speed > 0 {
+    if speed >= 0 {
         buffer.write_byte(motor.1)?;
         buffer.write_byte(speed as u8)?;
     } else {
