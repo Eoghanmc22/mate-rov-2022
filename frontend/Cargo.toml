@@ -4,5 +4,6 @@ members = [
     "mate-gui",
     "serial",
     "calibrate",
-    "sensor-fusion"
+    "sensor-fusion",
+    "cv"
 ]
