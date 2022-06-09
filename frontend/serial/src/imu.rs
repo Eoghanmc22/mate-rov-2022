@@ -2,7 +2,7 @@ use serialport::{ClearBuffer, SerialPort, SerialPortInfo, SerialPortType};
 use std::io;
 use std::io::Read;
 use std::time::Duration;
-use anyhow::{bail, Context};
+use anyhow::bail;
 use sensor_fusion::frame::IMUFrame;
 use sensor_fusion::frame;
 
@@ -31,7 +31,7 @@ pub fn listen_to_port<F: FnMut(IMUFrame) -> anyhow::Result<()>>(port: &str, mut 
     let mut port = serialport::new(port, common::BAUD_RATE_FORWARD)
         .timeout(Duration::from_millis(1))
         .open_native()
-        .context("Failed to open port")?;
+        .expect("Failed to open port");
 
     port.clear(ClearBuffer::All)?;
 
