@@ -1,10 +1,11 @@
 use opencv::*;
-use opencv::core::{in_range, Point, Scalar, Size2i, ToInputArray, Vec3b, Vec4i, VecN, Vector};
+use opencv::core::{in_range, Point, Point2d, Scalar, Size2i, ToInputArray, Vec3b, Vec4i, VecN, Vector};
 use opencv::prelude::*;
 use opencv::types::{VectorOfPoint2f, VectorOfVec4i, VectorOfVectorOfPoint};
+use common::controller::VelocityData;
 
 fn main() -> anyhow::Result<()> {
-    let image = imgcodecs::imread("red.jpg", imgcodecs::IMREAD_COLOR)?;
+    let image = imgcodecs::imread("reddd.png", imgcodecs::IMREAD_COLOR)?;
 
     let mut median = Mat::default();
     imgproc::median_blur(&image, &mut median, 5)?;
@@ -12,25 +13,33 @@ fn main() -> anyhow::Result<()> {
     let mut gaussian = Mat::default();
     imgproc::gaussian_blur(&median, &mut gaussian, Size2i::new(5, 5), 0.0, 0.0, core::BORDER_DEFAULT)?;
 
-    let (mut image, mask) = isolate_red(&gaussian)?;
+    let (image, mask) = isolate_red(&gaussian)?;
 
     let mut contours = VectorOfVectorOfPoint::default();
     imgproc::find_contours(&mask, &mut contours, imgproc::RETR_TREE, imgproc::CHAIN_APPROX_SIMPLE, Point::new(0, 0))?;
 
     {
-        println!("contors: {}", contours.len());
+        println!("contours: {}", contours.len());
 
         let mut img2 = image.clone();
         imgproc::draw_contours(&mut img2, &contours, -1, Scalar::from((0.0, 255.0, 0.0)), 1, imgproc::LINE_8, &core::no_array(), i32::MAX, Point::new(0, 0))?;
         highgui::imshow("img2", &img2)?;
     }
 
-    let mut contors = contours.iter().filter(|cnt| imgproc::contour_area(cnt, false) >= 500);
+    let mut contors = contours.iter().filter(|cnt| imgproc::contour_area(cnt, false).unwrap_or(0.0) >= 500.0);
 
     if let Some(cnt) = contors.next() {
         let moments = imgproc::moments(&cnt, false)?;
         let cx = moments.m10 / moments.m00;
         let cy = moments.m01 / moments.m00;
+
+        let fx = cx / image.cols() as f64;
+        let fy = cy / image.rows() as f64;
+
+        let mut img2 = image.clone();
+        imgproc::draw_contours(&mut img2, &contours, -1, Scalar::from((0.0, 255.0, 0.0)), 1, imgproc::LINE_8, &core::no_array(), i32::MAX, Point::new(0, 0))?;
+        imgproc::draw_marker(&mut img2, Point::new(cx as i32, cy as i32), Scalar::from((0.0, 255.0, 0.0)), imgproc::MARKER_CROSS, 20, 1, 8)?;
+        highgui::imshow("thing", &img2)?;
 
         // todo set motor speed based off of position
     } else {
@@ -45,6 +54,8 @@ fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+fn follower(fx: f64, fy: f64, last: ()) -> VelocityData
 
 fn isolate_red(image: &Mat) -> anyhow::Result<(Mat, Mat)> {
     let mut image_lab = Mat::default();
