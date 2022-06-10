@@ -306,7 +306,7 @@ mod communication {
         let mut state = RobotState::default();
         state.reset();
 
-        serial::imu::listen(move |frame| {
+        serial::imu::listen(move |frame, makeup| {
             for command in rx_notification.try_iter() {
                 match command {
                     SerialNotification::ResetState => {
@@ -315,7 +315,7 @@ mod communication {
                 }
             }
 
-            state::update_state(&frame, &mut state);
+            state::update_state(&frame, &mut state, makeup);
 
             tx_data.send(state.clone()).unwrap();
 

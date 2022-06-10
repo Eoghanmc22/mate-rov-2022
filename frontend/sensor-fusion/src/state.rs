@@ -102,11 +102,11 @@ pub fn increment_ping() {
     OUT_TIME.store(tx_time, Ordering::Release);
 }
 
-pub fn update_state(frame: &IMUFrame, state: &mut RobotState) {
+pub fn update_state(frame: &IMUFrame, state: &mut RobotState, makeup: u32) {
     let a_a = 0.98;
     let a_m = 0.95;
 
-    let duration = frame.total_duration.as_secs_f32();
+    let duration = frame.total_duration.as_secs_f32() * (makeup + 1) as f32;
 
     state.acceleration = frame.acceleration;
     state.gyro_velocity = /*gyro_velocity_high_pass.filter(*/frame.gyro/*, duration)*/;

@@ -17,7 +17,7 @@ fn get_port() -> anyhow::Result<Option<SerialPortInfo>> {
         }))
 }
 
-pub fn listen<F: FnMut(IMUFrame) -> anyhow::Result<()>>(imu_notification: F) -> anyhow::Result<!> {
+pub fn listen<F: FnMut(IMUFrame, u32) -> anyhow::Result<()>>(imu_notification: F) -> anyhow::Result<!> {
     if let Some(port) = get_port()? {
         println!("Selected port {}", port.port_name);
         listen_to_port(&port.port_name, imu_notification)
@@ -27,7 +27,7 @@ pub fn listen<F: FnMut(IMUFrame) -> anyhow::Result<()>>(imu_notification: F) -> 
 
 }
 
-pub fn listen_to_port<F: FnMut(IMUFrame) -> anyhow::Result<()>>(port: &str, mut imu_notification: F) -> anyhow::Result<!> {
+pub fn listen_to_port<F: FnMut(IMUFrame, u32) -> anyhow::Result<()>>(port: &str, mut imu_notification: F) -> anyhow::Result<!> {
     let mut port = serialport::new(port, common::BAUD_RATE_FORWARD)
         .timeout(Duration::from_millis(1))
         .open_native()
@@ -37,6 +37,7 @@ pub fn listen_to_port<F: FnMut(IMUFrame) -> anyhow::Result<()>>(port: &str, mut 
 
     let mut buffer = [0; 4098];
     let mut last_end = 0;
+    let mut makeup = 0;
 
     loop {
         match port.read(&mut buffer[last_end..]) {
@@ -48,9 +49,11 @@ pub fn listen_to_port<F: FnMut(IMUFrame) -> anyhow::Result<()>>(port: &str, mut 
                 for frame in frames {
                     if *frame.last().unwrap() == 0x6E {
                         if let Some(frame) = frame::decode_imu_frame(frame) {
-                            (imu_notification)(frame)?;
+                            (imu_notification)(frame, makeup)?;
+                            makeup = 0;
                         } else {
                             println!("invalid frame");
+                            makeup += 1;
                         }
                     } else {
                         removed = frame.len();

@@ -24,7 +24,7 @@ pub fn decode_imu_frame(mut frame: &[u8]) -> Option<IMUFrame> {
     let gyro_y = read_i16(&mut frame)?;
     let gyro_z = read_i16(&mut frame)?;
 
-    let mag = if frame.len() > 2 {
+    let mag = if frame.len() > 3 {
         let mag_x = read_i16(&mut frame)?;
         let mag_y = read_i16(&mut frame)?;
         let mag_z = read_i16(&mut frame)?;
@@ -42,7 +42,6 @@ pub fn decode_imu_frame(mut frame: &[u8]) -> Option<IMUFrame> {
         .fold(0u8, |acc, &it| acc ^ it);
 
     if frame.len() != 3 || check != actual {
-        println!("len: {}, ck: {:b}, asd: {}", frame.len(), check ^ actual, full_frame.len()-frame.len()+2);
         return None;
     }
 
