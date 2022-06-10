@@ -72,11 +72,15 @@ void loop() {
     // Time to collect data
     writeByte((char) (millis() - startTime));
     writeByte((char) check);
-    writeByte((char) 0x7A);
+    Serial.print((char) 0x6E);
 }
 
 void writeByte(char b) {
-    Serial.print((char) b);
+    if (b == (char) 0x6E) {
+        b = (char) 0x6D;
+    }
+
+    Serial.print(b);
     check ^= b;
 }
 

@@ -42,11 +42,11 @@ pub fn listen_to_port<F: FnMut(IMUFrame) -> anyhow::Result<()>>(port: &str, mut 
         match port.read(&mut buffer[last_end..]) {
             Ok(read) => {
                 let available = read + last_end;
-                let frames = buffer[..available].split_inclusive(|&byte| byte == 0x7A);
+                let frames = buffer[..available].split_inclusive(|&byte| byte == 0x6E);
 
                 let mut removed = 0;
                 for frame in frames {
-                    if *frame.last().unwrap() == 0x7A {
+                    if *frame.last().unwrap() == 0x6E {
                         if let Some(frame) = frame::decode_imu_frame(frame) {
                             (imu_notification)(frame)?;
                         } else {
