@@ -1,6 +1,5 @@
 use glam::Vec3;
 use std::time::Duration;
-use bytes::Buf;
 
 #[derive(Debug)]
 pub struct IMUFrame {
@@ -13,32 +12,43 @@ pub struct IMUFrame {
 }
 
 pub fn decode_imu_frame(mut frame: &[u8]) -> Option<IMUFrame> {
-    let pressure = frame.get_u16_le();
+    let pressure = read_i16(&mut frame)?;
 
-    let accel_x = frame.get_i16_le();
-    let accel_y = frame.get_i16_le();
-    let accel_z = frame.get_i16_le();
+    let accel_x = read_i16(&mut frame)?;
+    let accel_y = read_i16(&mut frame)?;
+    let accel_z = read_i16(&mut frame)?;
 
-    let gyro_x = frame.get_i16_le();
-    let gyro_y = frame.get_i16_le();
-    let gyro_z = frame.get_i16_le();
+    let gyro_x = read_i16(&mut frame)?;
+    let gyro_y = read_i16(&mut frame)?;
+    let gyro_z = read_i16(&mut frame)?;
 
     let mag = if frame.len() > 2 {
-        let mag_x = frame.get_i16_le();
-        let mag_y = frame.get_i16_le();
-        let mag_z = frame.get_i16_le();
+        let mag_x = read_i16(&mut frame)?;
+        let mag_y = read_i16(&mut frame)?;
+        let mag_z = read_i16(&mut frame)?;
         Some((mag_x, mag_y, mag_z))
     } else {
         None
     };
 
-    let total_ms = frame.get_u16_le();
+    let total_ms = *frame.get(0)?;
 
-    if frame.len() > 0 {
+    if frame.len() > 2 {
         return None;
     }
 
-    Some(raw_to_frame(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, mag, pressure, total_ms as u64))
+    Some(raw_to_frame(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, mag, pressure as u16, total_ms as u64))
+}
+
+fn read_i16(buffer: &mut &[u8]) -> Option<i16> {
+    if buffer.len() >= 2 {
+        let num = i16::from_le_bytes(buffer[..2].try_into().unwrap());
+        *buffer = &buffer[2..];
+
+        Some(num)
+    } else {
+        None
+    }
 }
 
 const G_M : f32 = 9.80665;

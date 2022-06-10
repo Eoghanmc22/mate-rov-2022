@@ -69,7 +69,7 @@ void loop() {
 
     // Time to collect data
     Serial.print((char) (millis() - startTime));
-    Serial.print((char) 0xFF);
+    Serial.print((char) 0x7A);
 }
 
 void handleZero() {
