@@ -1,45 +1,44 @@
 use glam::Vec3;
 use std::time::Duration;
+use bytes::Buf;
 
 #[derive(Debug)]
 pub struct IMUFrame {
     pub acceleration: Vec3,
     pub gyro: Vec3,
-    pub mag: Vec3,
+    pub mag: Option<Vec3>,
     pub pressure: f32,
 
-    pub collection_duration: Duration,
-    pub total_duration: Duration
+    pub total_duration: Duration,
 }
 
-pub fn decode_imu_frame(frame: &str) -> Option<IMUFrame> {
-    let mut parts = frame.split(" ");
+pub fn decode_imu_frame(mut frame: &[u8]) -> Option<IMUFrame> {
+    let pressure = frame.get_u16_le();
 
-    let mut vals = parts.next()?.get(1..)?.split(',').map(|it| it.parse::<i16>());
-    let accel_x = vals.next()?.ok()?;
-    let accel_y = vals.next()?.ok()?;
-    let accel_z = vals.next()?.ok()?;
+    let accel_x = frame.get_i16_le();
+    let accel_y = frame.get_i16_le();
+    let accel_z = frame.get_i16_le();
 
-    let mut vals = parts.next()?.get(1..)?.split(',').map(|it| it.parse::<i16>());
-    let gyro_x = vals.next()?.ok()?;
-    let gyro_y = vals.next()?.ok()?;
-    let gyro_z = vals.next()?.ok()?;
+    let gyro_x = frame.get_i16_le();
+    let gyro_y = frame.get_i16_le();
+    let gyro_z = frame.get_i16_le();
 
-    let mut vals = parts.next()?.get(1..)?.split(',').map(|it| it.parse::<i16>());
-    let mag_x = vals.next()?.ok()?;
-    let mag_y = vals.next()?.ok()?;
-    let mag_z = vals.next()?.ok()?;
+    let mag = if frame.len() > 2 {
+        let mag_x = frame.get_i16_le();
+        let mag_y = frame.get_i16_le();
+        let mag_z = frame.get_i16_le();
+        Some((mag_x, mag_y, mag_z))
+    } else {
+        None
+    };
 
-    let pressure = parts.next()?.get(1..)?.parse::<u16>().ok()?;
+    let total_ms = frame.get_u16_le();
 
-    let collection_ms = parts.next()?.get(1..)?.parse::<u64>().ok()?;
-    let total_ms = parts.next()?.get(1..)?.parse::<u64>().ok()?;
-
-    if parts.count() > 0 {
+    if frame.len() > 0 {
         return None;
     }
 
-    Some(raw_to_frame(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, mag_x, mag_y, mag_z, pressure, collection_ms, total_ms))
+    Some(raw_to_frame(accel_x, accel_y, accel_z, gyro_x, gyro_y, gyro_z, mag, pressure, total_ms as u64))
 }
 
 const G_M : f32 = 9.80665;
@@ -59,7 +58,9 @@ const A_X_OFFSET: f32 = 0.0;
 const A_Y_OFFSET: f32 = 0.0;
 const A_Z_OFFSET: f32 = 0.0;
 
-fn raw_to_frame(accel_x: i16, accel_y: i16, accel_z: i16, gyro_x: i16, gyro_y: i16, gyro_z: i16, mag_x: i16, mag_y: i16, mag_z: i16, pressure: u16, collection_ms: u64, total_ms: u64) -> IMUFrame {
+fn raw_to_frame(accel_x: i16, accel_y: i16, accel_z: i16, gyro_x: i16, gyro_y: i16, gyro_z: i16, mag: Option<(i16, i16, i16)>, pressure: u16, total_ms: u64) -> IMUFrame {
+    let pressure = (pressure as f32 / 1023.0 * 5.0 - 0.5) / 4.0 * 100.0;
+
     let accel_x = accel_x as f32 * ACCEL_GAIN - A_X_OFFSET;
     let accel_y = accel_y as f32 * ACCEL_GAIN - A_Y_OFFSET;
     let accel_z = accel_z as f32 * ACCEL_GAIN - A_Z_OFFSET;
@@ -68,18 +69,25 @@ fn raw_to_frame(accel_x: i16, accel_y: i16, accel_z: i16, gyro_x: i16, gyro_y: i
     let gyro_y = gyro_y as f32 * GYRO_GAIN - G_Y_OFFSET;
     let gyro_z = gyro_z as f32 * GYRO_GAIN - G_Z_OFFSET;
 
-    let mag_x = mag_x as f32 * MAG_GAIN;
-    let mag_y = mag_y as f32 * MAG_GAIN;
-    let mag_z = mag_z as f32 * MAG_GAIN;
+    if let Some((mag_x, mag_y, mag_z)) = mag {
+        let mag_x = mag_x as f32 * MAG_GAIN;
+        let mag_y = mag_y as f32 * MAG_GAIN;
+        let mag_z = mag_z as f32 * MAG_GAIN;
 
-    let pressure = (pressure as f32 / 1023.0 * 5.0 - 0.5) / 4.0 * 100.0;
-
-    IMUFrame {
-        acceleration: Vec3::new(accel_x, accel_y, accel_z),
-        gyro: Vec3::new(gyro_x, gyro_y, gyro_z),
-        mag: Vec3::new(mag_x, mag_y, mag_z),
-        pressure,
-        collection_duration: Duration::from_millis(collection_ms),
-        total_duration: Duration::from_millis(total_ms)
+        IMUFrame {
+            acceleration: Vec3::new(accel_x, accel_y, accel_z),
+            gyro: Vec3::new(gyro_x, gyro_y, gyro_z),
+            mag: Some(Vec3::new(mag_x, mag_y, mag_z)),
+            pressure,
+            total_duration: Duration::from_millis(total_ms)
+        }
+    } else {
+        IMUFrame {
+            acceleration: Vec3::new(accel_x, accel_y, accel_z),
+            gyro: Vec3::new(gyro_x, gyro_y, gyro_z),
+            mag: None,
+            pressure,
+            total_duration: Duration::from_millis(total_ms)
+        }
     }
 }

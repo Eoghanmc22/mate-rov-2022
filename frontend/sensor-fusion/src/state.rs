@@ -20,7 +20,6 @@ pub struct RobotState {
 
     pub pressure: f32,
 
-    pub collection_duration: Duration,
     pub total_duration: Duration,
 
     first_read: bool,
@@ -111,9 +110,8 @@ pub fn update_state(frame: &IMUFrame, state: &mut RobotState) {
 
     state.acceleration = frame.acceleration;
     state.gyro_velocity = /*gyro_velocity_high_pass.filter(*/frame.gyro/*, duration)*/;
-    state.mag = frame.mag;
+    state.mag = frame.mag.unwrap_or(state.mag);
     state.pressure = frame.pressure;
-    state.collection_duration = frame.collection_duration;
     state.total_duration = frame.total_duration;
 
     if state.first_read {

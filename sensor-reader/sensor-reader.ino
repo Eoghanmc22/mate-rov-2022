@@ -1,15 +1,17 @@
 #include "IMU.h"
 #include <avr/wdt.h>
 
-#define DT 10  // Loop time [ms]
+#define DT 16  // Loop time [ms]
 
 byte buff[6];
 unsigned long startTime;
 int badCount;
+bool sendMag = true;
+int pressure;
 
 void setup() {
     wdt_disable();
-    Serial.begin(57600);  // start serial for output
+    Serial.begin(9600);  // start serial for output
     badCount = 0;
 
     initCommunication();
@@ -22,53 +24,52 @@ void loop() {
 
     startTime = millis();
 
+    // Read pressure data
+    pressure = analogRead(A0);
+    Serial.print((char) pressure);
+    Serial.print((char) (pressure >> 8));
+
     // Read accelerator data
     readACC(buff);
-    Serial.print("A");
-    Serial.print((int) buff[1] << 8 | buff[0]);
-    Serial.print(",");
-    Serial.print((int) buff[3] << 8 | buff[2]);
-    Serial.print(",");
-    Serial.print((int) buff[5] << 8 | buff[4]);
     handleZero();
+    Serial.print((char) buff[0]);
+    Serial.print((char) buff[1]);
+    Serial.print((char) buff[2]);
+    Serial.print((char) buff[3]);
+    Serial.print((char) buff[4]);
+    Serial.print((char) buff[5]);
 
     // Read gyro data
     readGYR(buff);
-    Serial.print(" G");
-    Serial.print((int) buff[1] << 8 | buff[0]);
-    Serial.print(",");
-    Serial.print((int) buff[3] << 8 | buff[2]);
-    Serial.print(",");
-    Serial.print((int) buff[5] << 8 | buff[4]);
     handleZero();
+    Serial.print((char) buff[0]);
+    Serial.print((char) buff[1]);
+    Serial.print((char) buff[2]);
+    Serial.print((char) buff[3]);
+    Serial.print((char) buff[4]);
+    Serial.print((char) buff[5]);
 
-    // Read magnetometer data
-    readMAG(buff);
-    Serial.print(" M");
-    Serial.print((int) buff[1] << 8 | buff[0]);
-    Serial.print(",");
-    Serial.print((int) buff[3] << 8 | buff[2]);
-    Serial.print(",");
-    Serial.print((int) buff[5] << 8 | buff[4]);
-    handleZero();
-
-    // Read pressure data
-    Serial.print(" P");
-    Serial.print(analogRead(A0));
-
-    // Time to collect data
-    Serial.print(" T");
-    Serial.print(millis() - startTime);
+    if (sendMag) {
+         // Read magnetometer data
+         readMAG(buff);
+         handleZero();
+         Serial.print((char) buff[0]);
+         Serial.print((char) buff[1]);
+         Serial.print((char) buff[2]);
+         Serial.print((char) buff[3]);
+         Serial.print((char) buff[4]);
+         Serial.print((char) buff[5]);
+    }
+    sendMag = !sendMag;
 
     //Each loop should be at least DT ms.
     while(millis() - startTime < DT) {
       delay(1);
     }
 
-    // Duration of entire frame
-    Serial.print(" E");
-    Serial.print(millis() - startTime);
-    Serial.print('\n');
+    // Time to collect data
+    Serial.print((char) (millis() - startTime));
+    Serial.print((char) 0xFF);
 }
 
 void handleZero() {
