@@ -203,6 +203,14 @@ fn main() -> ! {
             // Notify the connected pc
             write_message(&UpstreamMessage::EStop(state.emergency_stop()), &mut usb_writer);
         }
+        
+        // Respond to pings
+        {
+            if state.do_ping() {
+                write_message(&UpstreamMessage::Pong, &mut usb_writer);
+                state.clear_ping();
+            }
+        }
 
         // Send updated motor speeds
         {

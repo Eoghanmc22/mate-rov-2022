@@ -4,7 +4,8 @@ use crate::CommunicationError;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum DownstreamMessage {
     VelocityUpdate(VelocityData),
-    EmergencyStop
+    EmergencyStop,
+    Ping
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -39,5 +40,7 @@ pub enum UpstreamMessage<'a> {
 
     TotalVelocity(VelocityData),
 
-    EStop(bool)
+    EStop(bool),
+
+    Pong
 }

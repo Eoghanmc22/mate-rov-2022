@@ -8,6 +8,8 @@ pub struct State {
     motor_sp_joystick: VelocityData,
 
     emergency_stop: bool,
+
+    do_ping: bool,
 }
 
 impl State {
@@ -19,6 +21,9 @@ impl State {
             }
             DownstreamMessage::EmergencyStop => {
                 self.emergency_stop = true;
+            }
+            DownstreamMessage::Ping => {
+                self.do_ping = true;
             }
         }
     }
@@ -36,6 +41,16 @@ impl State {
     /// Is an emergency stop active
     pub fn emergency_stop(&self) -> bool {
         self.emergency_stop
+    }
+
+    /// Do we need to respond to a ping
+    pub fn do_ping(&self) -> bool {
+        self.do_ping
+    }
+
+    /// Clear ping status
+    pub fn clear_ping(&mut self) {
+        self.do_ping = false;
     }
 
     // Maybe add interpolation? prob not necessary tho

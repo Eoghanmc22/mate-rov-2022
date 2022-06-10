@@ -1,4 +1,6 @@
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time;
+use std::time::{Duration, SystemTime};
 use glam::*;
 use common::controller::{UpstreamMessage, VelocityData};
 use crate::frame::IMUFrame;
@@ -28,6 +30,8 @@ pub struct RobotState {
 pub struct MotorState {
     pub total_velocity: VelocityData,
     pub emergency_stop: bool,
+    pub average_ping: f64,
+    pub last_ping: f64,
 }
 
 impl RobotState {
@@ -36,6 +40,10 @@ impl RobotState {
         self.first_read = true;
     }
 }
+
+pub static PING_COUNT: AtomicU64 = AtomicU64::new(0);
+pub static AVG_PING: AtomicU64 = AtomicU64::new(0);
+pub static OUT_TIME: AtomicU64 = AtomicU64::new(0);
 
 pub fn handle_message(message: &UpstreamMessage, state: &mut MotorState) {
     match message {
@@ -60,7 +68,39 @@ pub fn handle_message(message: &UpstreamMessage, state: &mut MotorState) {
         UpstreamMessage::TotalVelocity(velocity) => {
             state.total_velocity = velocity.clone();
         }
+        UpstreamMessage::Pong => {
+            let tx_time = OUT_TIME.load(Ordering::Acquire);
+            let rx_time = SystemTime::now()
+                .duration_since(time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos() as u64;
+
+            if rx_time < tx_time {
+                return;
+            }
+
+            PING_COUNT.fetch_add(1, Ordering::AcqRel);
+
+            let delta = (rx_time - tx_time) as f64;
+            let count = PING_COUNT.load(Ordering::Acquire) as f64;
+            let last_average = AVG_PING.load(Ordering::Acquire) as f64;
+
+            let average_ping = ((count - 1.0) / count) * last_average + (1.0 / count) * delta;
+            AVG_PING.store(average_ping as u64, Ordering::Release);
+
+            state.average_ping = average_ping;
+            state.last_ping = delta;
+        }
     }
+}
+
+pub fn increment_ping() {
+    let tx_time = SystemTime::now()
+        .duration_since(time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+
+    OUT_TIME.store(tx_time, Ordering::Release);
 }
 
 pub fn update_state(frame: &IMUFrame, state: &mut RobotState) {

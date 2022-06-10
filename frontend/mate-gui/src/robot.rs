@@ -1,7 +1,9 @@
 use std::thread;
+use std::time::Duration;
 use bevy::prelude::*;
 use crossbeam::channel::{bounded, Receiver, Sender};
 use common::controller::DownstreamMessage;
+use sensor_fusion::state;
 use sensor_fusion::state::{MotorState, RobotState};
 use crate::{ui, utils};
 
@@ -70,6 +72,9 @@ pub enum ControllerData {
     SpeedSpForwardsRight,
     SpeedSpStrafing,
     SpeedSpVertical,
+
+    AveragePing,
+    LastPing,
 }
 
 fn serial_monitor(mut commands: Commands) {
@@ -78,15 +83,32 @@ fn serial_monitor(mut commands: Commands) {
     let (tx_notification, rx_notification) = bounded::<SerialNotification>(15);
     let (tx_command, rx_command) = bounded::<DownstreamMessage>(15);
 
-    thread::Builder::new()
-        .name("IMU Serial Monitor".to_owned())
-        .spawn(move || utils::error_boundary(|| communication::listen_to_imu(tx_data.clone(), rx_notification.clone())))
-        .unwrap();
+    {
+        thread::Builder::new()
+            .name("IMU Serial Monitor".to_owned())
+            .spawn(move || utils::error_boundary(|| communication::listen_to_imu(tx_data.clone(), rx_notification.clone())))
+            .unwrap();
+    }
 
-    thread::Builder::new()
-        .name("Controller Serial Monitor".to_owned())
-        .spawn(move || utils::error_boundary(|| communication::listen_to_controller(tx_state.clone(), rx_command.clone())))
-        .unwrap();
+    {
+        thread::Builder::new()
+            .name("Controller Serial Monitor".to_owned())
+            .spawn(move || utils::error_boundary(|| communication::listen_to_controller(tx_state.clone(), rx_command.clone())))
+            .unwrap();
+    }
+
+    {
+        let tx_command = tx_command.clone();
+
+        thread::Builder::new()
+            .name("Controller Pinger".to_owned())
+            .spawn(move || utils::error_boundary(|| loop {
+                tx_command.send(DownstreamMessage::Ping)?;
+                state::increment_ping();
+                thread::sleep(Duration::from_millis(50));
+            }))
+            .unwrap();
+    }
 
     commands.insert_resource(Serial(rx_data, rx_state, tx_notification, tx_command));
 }
@@ -256,6 +278,14 @@ fn update_displays_controller(mut query: Query<(&mut Text, &ControllerData)>, mu
                     ControllerData::SpeedSpVertical => {
                         let section = &mut text.sections[1];
                         section.value = format!("{:.2}", state.total_velocity.vertical);
+                    }
+                    ControllerData::AveragePing => {
+                        let section = &mut text.sections[1];
+                        section.value = format!("{:.4} us", state.average_ping / 1000.0);
+                    }
+                    ControllerData::LastPing => {
+                        let section = &mut text.sections[1];
+                        section.value = format!("{:.4} us", state.last_ping / 1000.0);
                     }
                 }
             }

@@ -142,6 +142,14 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 parent.spawn_bundle(
                     create_rect()
                 ).with_children(|parent| {
+                    parent.spawn_bundle(create_text("Communication: ", 20.0, &asset_server));
+                    parent.spawn_bundle(create_text("Avg Ping: ", 15.0, &asset_server)).insert(ControllerData::AveragePing);
+                    parent.spawn_bundle(create_text("Last Ping: ", 15.0, &asset_server)).insert(ControllerData::LastPing);
+                });
+
+                parent.spawn_bundle(
+                    create_rect()
+                ).with_children(|parent| {
                     parent.spawn_bundle(create_text("Pressure: ", 20.0, &asset_server));
                     parent.spawn_bundle(create_text("Psi: ", 15.0, &asset_server)).insert(RobotData::Pressure);
                 });
