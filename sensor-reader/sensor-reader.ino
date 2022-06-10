@@ -65,9 +65,9 @@ void loop() {
     sendMag = !sendMag;
 
     //Each loop should be at least DT ms.
-    while(millis() - startTime < DT) {
-        delay(1);
-    }
+    //while(millis() - startTime < DT) {
+        //delay(1);
+    //}
 
     // Time to collect data
     writeByte((char) (millis() - startTime));
