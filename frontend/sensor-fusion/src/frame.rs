@@ -12,6 +12,8 @@ pub struct IMUFrame {
 }
 
 pub fn decode_imu_frame(mut frame: &[u8]) -> Option<IMUFrame> {
+    let full_frame = &*frame;
+
     let pressure = read_i16(&mut frame)?;
 
     let accel_x = read_i16(&mut frame)?;
@@ -33,7 +35,14 @@ pub fn decode_imu_frame(mut frame: &[u8]) -> Option<IMUFrame> {
 
     let total_ms = *frame.get(0)?;
 
-    if frame.len() > 2 {
+    let check = *frame.get(1)?;
+    let actual = full_frame
+        .get(..full_frame.len()-frame.len()+1)?
+        .iter()
+        .fold(0u8, |acc, &it| acc ^ it);
+
+    if frame.len() != 3 || check != actual {
+        println!("len: {}, ck: {:b}, asd: {}", frame.len(), check ^ actual, full_frame.len()-frame.len()+2);
         return None;
     }
 

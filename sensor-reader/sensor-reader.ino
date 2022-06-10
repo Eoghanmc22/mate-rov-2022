@@ -1,13 +1,14 @@
 #include "IMU.h"
 #include <avr/wdt.h>
 
-#define DT 16  // Loop time [ms]
+#define DT 17  // Loop time [ms]
 
 byte buff[6];
 unsigned long startTime;
 int badCount;
 bool sendMag = true;
 int pressure;
+char check;
 
 void setup() {
     wdt_disable();
@@ -22,54 +23,61 @@ void setup() {
 void loop() {
     wdt_reset();
 
+    check = 0;
     startTime = millis();
 
     // Read pressure data
     pressure = analogRead(A0);
-    Serial.print((char) pressure);
-    Serial.print((char) (pressure >> 8));
+    writeByte((char) pressure);
+    writeByte((char) (pressure >> 8));
 
     // Read accelerator data
     readACC(buff);
     handleZero();
-    Serial.print((char) buff[0]);
-    Serial.print((char) buff[1]);
-    Serial.print((char) buff[2]);
-    Serial.print((char) buff[3]);
-    Serial.print((char) buff[4]);
-    Serial.print((char) buff[5]);
+    writeByte((char) buff[0]);
+    writeByte((char) buff[1]);
+    writeByte((char) buff[2]);
+    writeByte((char) buff[3]);
+    writeByte((char) buff[4]);
+    writeByte((char) buff[5]);
 
     // Read gyro data
     readGYR(buff);
     handleZero();
-    Serial.print((char) buff[0]);
-    Serial.print((char) buff[1]);
-    Serial.print((char) buff[2]);
-    Serial.print((char) buff[3]);
-    Serial.print((char) buff[4]);
-    Serial.print((char) buff[5]);
+    writeByte((char) buff[0]);
+    writeByte((char) buff[1]);
+    writeByte((char) buff[2]);
+    writeByte((char) buff[3]);
+    writeByte((char) buff[4]);
+    writeByte((char) buff[5]);
 
     if (sendMag) {
-         // Read magnetometer data
-         readMAG(buff);
-         handleZero();
-         Serial.print((char) buff[0]);
-         Serial.print((char) buff[1]);
-         Serial.print((char) buff[2]);
-         Serial.print((char) buff[3]);
-         Serial.print((char) buff[4]);
-         Serial.print((char) buff[5]);
+        // Read magnetometer data
+        readMAG(buff);
+        handleZero();
+        writeByte((char) buff[0]);
+        writeByte((char) buff[1]);
+        writeByte((char) buff[2]);
+        writeByte((char) buff[3]);
+        writeByte((char) buff[4]);
+        writeByte((char) buff[5]);
     }
     sendMag = !sendMag;
 
     //Each loop should be at least DT ms.
     while(millis() - startTime < DT) {
-      delay(1);
+        delay(1);
     }
 
     // Time to collect data
-    Serial.print((char) (millis() - startTime));
-    Serial.print((char) 0x7A);
+    writeByte((char) (millis() - startTime));
+    writeByte((char) check);
+    writeByte((char) 0x7A);
+}
+
+void writeByte(char b) {
+    Serial.print((char) b);
+    check ^= b;
 }
 
 void handleZero() {
