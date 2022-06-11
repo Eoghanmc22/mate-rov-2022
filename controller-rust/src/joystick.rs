@@ -46,10 +46,10 @@ impl<Lx, Ly, Rx, Ry> Joystick<Lx, Ly, Rx, Ry>
         let rx = self.right_x.analog_read(adc) as f32 / ADC_SCALE * 2.0 - 1.0;
         let ry = self.right_y.analog_read(adc) as f32 / ADC_SCALE * 2.0 - 1.0;
 
-        let lx = common::clamp_map_val(lx, min, max);
-        let ly = common::clamp_map_val(ly, min, max);
-        let rx = common::clamp_map_val(rx, min, max);
-        let ry = common::clamp_map_val(ry, min, max);
+        let lx = -common::clamp_map_val(lx, min, max);
+        let ly = -common::clamp_map_val(ly, min, max);
+        let rx = -common::clamp_map_val(rx, min, max);
+        let ry = -common::clamp_map_val(ry, min, max);
 
         common::joystick_math(lx, ly, rx, ry)
     }
