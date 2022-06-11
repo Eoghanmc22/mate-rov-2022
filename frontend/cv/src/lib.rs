@@ -5,5 +5,7 @@ use sensor_fusion::state::{MotorState, RobotState};
 use common::controller::VelocityData;
 
 pub trait OpenCvHandler {
-    fn handle_frame(frame: &Mat, robot: &RobotState, motor: &MotorState) -> anyhow::Result<VelocityData>;
+    type Goal: ToString;
+
+    fn handle_frame(frame: &Mat, robot: &RobotState, motor: &MotorState, goal: Self::Goal) -> anyhow::Result<(VelocityData, Self::Goal)>;
 }

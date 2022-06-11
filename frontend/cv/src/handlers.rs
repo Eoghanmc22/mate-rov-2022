@@ -5,8 +5,8 @@ use crate::OpenCvHandler;
 
 pub struct LineFollower;
 
-impl OpenCvHandler for LineFollower {
+/*impl OpenCvHandler for LineFollower {
     fn handle_frame(frame: &Mat, robot: &RobotState, motor: &MotorState) -> anyhow::Result<VelocityData> {
         todo!()
     }
-}
+}*/
