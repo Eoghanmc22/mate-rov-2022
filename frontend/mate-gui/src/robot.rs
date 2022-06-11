@@ -282,11 +282,11 @@ fn update_displays_controller(mut query: Query<(&mut Text, &ControllerData)>, mu
                     }
                     ControllerData::AveragePing => {
                         let section = &mut text.sections[1];
-                        section.value = format!("{:.4} us", state.average_ping / 1000.0);
+                        section.value = format!("{:.2} ms", state.average_ping / 1000000.0);
                     }
                     ControllerData::LastPing => {
                         let section = &mut text.sections[1];
-                        section.value = format!("{:.4} us", state.last_ping / 1000.0);
+                        section.value = format!("{:.2} ms", state.last_ping / 1000000.0);
                     }
                 }
             }
