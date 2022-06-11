@@ -20,6 +20,8 @@ impl Plugin for VideoPlugin {
             .add_system(select_camera)
             .add_system(stream_reader)
             .add_system(camera_reader)
+            .add_system(update_displays_auto)
+            .add_system(task_handler)
         ;
     }
 }
@@ -37,7 +39,7 @@ pub struct CameraDisplay;
 pub struct GoalDisplay;
 
 #[derive(Component)]
-pub struct OpenCvTaskButton(Box<dyn OpenCvHandler + Send + Sync>);
+pub struct OpenCvTaskButton(pub Box<dyn Fn() -> Option<Box<dyn OpenCvHandler + Send + Sync>> + Send + Sync>);
 
 #[derive(Component)]
 pub struct CameraSelector(i32);
@@ -126,16 +128,24 @@ fn camera_reader(mut commands: Commands, panel_query: Query<Entity, With<CameraS
 
 fn update_displays_auto(mut query: Query<&mut Text, With<GoalDisplay>>, mut ev_data: EventReader<AutoMsgEvent>) {
     for AutoMsgEvent(msg) in ev_data.iter() {
-        for (mut text) in query.iter_mut() {
+        for mut text in query.iter_mut() {
             if text.sections.len() == 1 {
                 let mut new_section = text.sections[0].clone();
                 new_section.value = String::new();
                 text.sections.push(new_section);
             }
-            if text.sections == 2 {
+            if text.sections.len() == 2 {
                 let section = &mut text.sections[1];
                 section.value = format!("{}", msg);
             }
+        }
+    }
+}
+
+fn task_handler(query: Query<(&Interaction, &OpenCvTaskButton), Changed<Interaction>>, stream: Res<Stream>) {
+    for (interaction, task) in query.iter() {
+        if let Interaction::Clicked = interaction {
+            let _ = stream.2.try_send(StreamEvent::FrameHandler { processor: (task.0)() });
         }
     }
 }
@@ -156,7 +166,7 @@ mod camera {
             file: String
         },
         FrameHandler {
-            processor: Option<Box<dyn OpenCvHandler + Send>>
+            processor: Option<Box<dyn OpenCvHandler + Send + Sync>>
         },
         Close
     }
@@ -178,7 +188,7 @@ mod camera {
         let mut last_cameras = Some(vec![]);
 
         let mut opencv_processor = None;
-        let mut opencv_thread_handle: Option<JoinHandle<anyhow::Result<((VelocityData, String), Box<dyn OpenCvHandler + Send>)>>> = None;
+        let mut opencv_thread_handle: Option<JoinHandle<anyhow::Result<((VelocityData, String), Box<dyn OpenCvHandler + Send + Sync>)>>> = None;
 
         let mut mat_1 = Mat::default();
         let mut mat_2 = Mat::default();
@@ -229,6 +239,11 @@ mod camera {
                     }
                     StreamEvent::Close => {}
                     StreamEvent::FrameHandler { processor } => {
+                        tx_camera_event.send(CameraEvent::AutonomousUpdate {
+                            velocity_data: VelocityData::default(),
+                            goal_msg: "No message".to_owned()
+                        })?;
+
                         opencv_processor = processor;
                     }
                 };

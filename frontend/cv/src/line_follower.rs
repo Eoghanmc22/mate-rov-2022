@@ -10,7 +10,7 @@ use opencv::types::{VectorOfPoint, VectorOfPoint2f, VectorOfVec4i, VectorOfVecto
 use common::controller::VelocityData;
 
 #[derive(Clone)]
-pub struct LineFollower(LineGoal);
+pub struct LineFollower(pub LineGoal);
 
 impl OpenCvHandler for LineFollower {
     fn handle_frame(&mut self, frame: &Mat) -> anyhow::Result<(VelocityData, String)> {

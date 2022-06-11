@@ -50,10 +50,10 @@ fn gamepad_input(
     axes: Res<Axis<GamepadAxis>>,
     buttons: Res<Input<GamepadButton>>,
     current_gamepad: Option<Res<CurrentGamepad>>,
-    mut velo: ResMut<JoyVelo>
+    velo: Option<ResMut<JoyVelo>>
 ) {
-    let gamepad = if let Some(gp) = current_gamepad {
-        gp.0
+    let (gamepad, mut velo) = if let Some((gp, velo)) = current_gamepad.zip(velo) {
+        (gp.0, velo)
     } else {
         return;
     };
