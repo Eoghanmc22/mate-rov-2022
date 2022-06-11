@@ -11,5 +11,6 @@ crossbeam = "0.8.1"
 anyhow = "1.0.57"
 serial = { path = "../serial" }
 sensor-fusion = { path = "../sensor-fusion" }
+cv = { path = "../cv" }
 glam = "0.20.5"
 smooth-bevy-cameras = "0.4.0"

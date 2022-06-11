@@ -1,50 +1,77 @@
+use std::fmt::{Display, Formatter};
+use anyhow::bail;
+use opencv::core::Mat;
+use sensor_fusion::state::{MotorState, RobotState};
+use crate::OpenCvHandler;
 use opencv::*;
 use opencv::core::{in_range, Point, Point2d, Rect, Scalar, Size2i, ToInputArray, Vec3b, Vec4i, VecN, Vector};
 use opencv::prelude::*;
 use opencv::types::{VectorOfPoint, VectorOfPoint2f, VectorOfVec4i, VectorOfVectorOfPoint};
 use common::controller::VelocityData;
 
-#[derive(Clone, Copy)]
+pub struct LineFollower;
+
+impl OpenCvHandler for LineFollower {
+    type Goal = LineGoal;
+
+    fn handle_frame(frame: &Mat, robot: &RobotState, motor: &MotorState, goal: Self::Goal) -> anyhow::Result<(VelocityData, Self::Goal)> {
+        let blur = blur(&frame)?;
+        let (image, mask) = isolate_red(&blur)?;
+        let contours = find_contours(&mask)?;
+
+        let contour = contours.iter()
+            .max_by(|a, b| f64::total_cmp(
+                &contour_area(a).unwrap_or(0.0),
+                &contour_area(a).unwrap_or(0.0)
+            ));
+
+        if let Some(cnt) = contour {
+            if contour_area(&cnt) > 500 {
+                let center = find_center(&cnt)?;
+                let ratio = point_to_ratio(&center, &image);
+
+                return match goal {
+                    LineGoal::CenterLine(direction) => {
+                        Ok(center_line(ratio.x, ratio.y, direction))
+                    }
+                    LineGoal::FollowLine(direction) => {
+                        Ok(follow_line(&mask, &cnt, ratio.x, ratio.y, direction))
+                    }
+                    LineGoal::LostLine => {
+                        Ok(center_line(ratio.x, ratio.y, None))
+                    }
+                }
+            } else if let LineGoal::LostLine = goal {
+                bail!("No line found");
+            } else {
+                return Ok((VelocityData::default(), LineGoal::LostLine));
+            }
+        } else if let LineGoal::LostLine = goal {
+            bail!("No line found");
+        } else {
+            return Ok((VelocityData::default(), LineGoal::LostLine));
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum LineGoal {
     CenterLine(Option<Direction>),
     FollowLine(Direction),
     LostLine
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Direction {
     Down,
     Left,
     Right
 }
 
-fn main() -> anyhow::Result<()> {
-    let image = imgcodecs::imread("reddd.png", imgcodecs::IMREAD_COLOR)?;
-
-    let blur = blur(&image)?;
-    let (image, mask) = isolate_red(&blur)?;
-    let contours = find_contours(&mask)?;
-
-    let contour = contours.iter()
-        .max_by(|a, b| f64::total_cmp(
-            &contour_area(a).unwrap_or(0.0),
-            &contour_area(a).unwrap_or(0.0)
-        ));
-
-    if let Some(cnt) = contour {
-        if contour_area(&cnt) > 500 {
-            let center = find_center(&cnt)?;
-            let ratio = point_to_ratio(&center, &image);
-
-            // todo set motor speed based off of position
-        } else {
-            println!("No line found");
-        }
-    } else {
-        println!("No line found");
+impl Display for LineGoal {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
-
-    Ok(())
 }
 
 fn center_line(x: f64, y: f64, next_direction: Option<Direction>) -> (VelocityData, LineGoal) {
@@ -91,12 +118,12 @@ fn follow_line(mask: &Mat, line: &Contour, x: f64, y: f64, last_direction: Direc
         strafing: (error_x * correction_multiplier + horizontal_bias * bias_multiplier) as f32,
         vertical: (-error_y * correction_multiplier + vertical_bias * bias_multiplier) as f32
     };
-    
+
     let x_start = mask.cols() * 2 / 5;
     let x_end = mask.cols() * 3 / 5;
     let y_start = mask.rows() * 2 / 5;
     let y_end = mask.rows() * 3 / 5;
-    
+
     let left_trigger = (Point::new(x_start, y_start), Point::new(x_start, y_end));
     let right_trigger = (Point::new(x_end, y_start), Point::new(x_end, y_end));
     let up_trigger = (Point::new(x_start, y_start), Point::new(x_end, y_start));

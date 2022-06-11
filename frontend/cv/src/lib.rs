@@ -1,4 +1,4 @@
-pub mod handlers;
+pub mod line_follower;
 
 use opencv::prelude::*;
 use sensor_fusion::state::{MotorState, RobotState};
