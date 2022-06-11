@@ -9,48 +9,16 @@ use opencv::prelude::*;
 use opencv::types::{VectorOfPoint, VectorOfPoint2f, VectorOfVec4i, VectorOfVectorOfPoint};
 use common::controller::VelocityData;
 
-pub struct LineFollower;
+#[derive(Clone)]
+pub struct LineFollower(LineGoal);
 
 impl OpenCvHandler for LineFollower {
-    type Goal = LineGoal;
-
-    fn handle_frame(frame: &Mat, robot: &RobotState, motor: &MotorState, goal: Self::Goal) -> anyhow::Result<(VelocityData, Self::Goal)> {
-        let blur = blur(&frame)?;
-        let (image, mask) = isolate_red(&blur)?;
-        let contours = find_contours(&mask)?;
-
-        let contour = contours.iter()
-            .max_by(|a, b| f64::total_cmp(
-                &contour_area(a).unwrap_or(0.0),
-                &contour_area(a).unwrap_or(0.0)
-            ));
-
-        if let Some(cnt) = contour {
-            if contour_area(&cnt) > 500 {
-                let center = find_center(&cnt)?;
-                let ratio = point_to_ratio(&center, &image);
-
-                return match goal {
-                    LineGoal::CenterLine(direction) => {
-                        Ok(center_line(ratio.x, ratio.y, direction))
-                    }
-                    LineGoal::FollowLine(direction) => {
-                        Ok(follow_line(&mask, &cnt, ratio.x, ratio.y, direction))
-                    }
-                    LineGoal::LostLine => {
-                        Ok(center_line(ratio.x, ratio.y, None))
-                    }
-                }
-            } else if let LineGoal::LostLine = goal {
-                bail!("No line found");
-            } else {
-                return Ok((VelocityData::default(), LineGoal::LostLine));
-            }
-        } else if let LineGoal::LostLine = goal {
-            bail!("No line found");
-        } else {
-            return Ok((VelocityData::default(), LineGoal::LostLine));
-        }
+    fn handle_frame(&mut self, frame: &Mat) -> anyhow::Result<(VelocityData, String)> {
+        line_tracker(frame, self.0).map(|(velo, goal)| {
+            self.0 = goal;
+            let message = std::format!("{:?}", goal);
+            (velo, message)
+        })
     }
 }
 
@@ -68,9 +36,44 @@ pub enum Direction {
     Right
 }
 
-impl Display for LineGoal {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+fn line_tracker(image: &Mat, goal: LineGoal) -> anyhow::Result<(VelocityData, LineGoal)> {
+    let blur = blur(&image)?;
+    let (image, mask) = isolate_red(&blur)?;
+    let contours = find_contours(&mask)?;
+
+    let contour = contours.iter()
+        .max_by(|a, b| f64::total_cmp(
+            &contour_area(a).unwrap_or(0.0),
+            &contour_area(a).unwrap_or(0.0)
+        ));
+
+    // TODO move forwards or backwards depending on amount of lines seen
+
+    if let Some(cnt) = contour {
+        if contour_area(&cnt)? > 500.0 {
+            let center = find_center(&cnt)?;
+            let ratio = point_to_ratio(&center, &image);
+
+            return match goal {
+                LineGoal::CenterLine(direction) => {
+                    Ok(center_line(ratio.x, ratio.y, direction))
+                }
+                LineGoal::FollowLine(direction) => {
+                    Ok(follow_line(&mask, &cnt, ratio.x, ratio.y, direction))
+                }
+                LineGoal::LostLine => {
+                    Ok(center_line(ratio.x, ratio.y, None))
+                }
+            }
+        } else if let LineGoal::LostLine = goal {
+            bail!("No line found");
+        } else {
+            return Ok((VelocityData::default(), LineGoal::LostLine));
+        }
+    } else if let LineGoal::LostLine = goal {
+        bail!("No line found");
+    } else {
+        return Ok((VelocityData::default(), LineGoal::LostLine));
     }
 }
 

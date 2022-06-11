@@ -2,10 +2,10 @@ use std::thread;
 use std::time::Duration;
 use bevy::prelude::*;
 use crossbeam::channel::{bounded, Receiver, Sender};
-use common::controller::DownstreamMessage;
+use common::controller::{DownstreamMessage, VelocityData};
 use sensor_fusion::state;
 use sensor_fusion::state::{MotorState, RobotState};
-use crate::{ui, utils};
+use crate::{AutoVelo, JoyVelo, ui, utils};
 
 pub struct RobotPlugin;
 
@@ -19,6 +19,7 @@ impl Plugin for RobotPlugin {
             .add_system(handler_state)
             .add_system(update_displays_imu)
             .add_system(update_displays_controller)
+            .add_system(send_velocity)
             .add_system(reset_handler)
             .add_system(estop_handler)
             .add_system(estop_display)
@@ -105,7 +106,7 @@ fn serial_monitor(mut commands: Commands) {
             .spawn(move || utils::error_boundary(|| loop {
                 tx_command.send(DownstreamMessage::Ping)?;
                 state::increment_ping();
-                thread::sleep(Duration::from_millis(50));
+                thread::sleep(Duration::from_millis(100));
             }))
             .unwrap();
     }
@@ -291,6 +292,36 @@ fn update_displays_controller(mut query: Query<(&mut Text, &ControllerData)>, mu
             }
         }
     }
+}
+
+pub fn send_velocity(serial: Res<Serial>, joystick: Option<Res<JoyVelo>>, auto: Option<Res<AutoVelo>>) {
+    let mut forwards_left = 0.0;
+    let mut forwards_right = 0.0;
+    let mut strafing = 0.0;
+    let mut vertical = 0.0;
+
+    if let Some(joy_velo) = joystick {
+        forwards_left += joy_velo.0.forwards_left;
+        forwards_right += joy_velo.0.forwards_right;
+        strafing += joy_velo.0.strafing;
+        vertical += joy_velo.0.vertical;
+    }
+
+    if let Some(auto) = auto {
+        forwards_left += auto.0.forwards_left;
+        forwards_right += auto.0.forwards_right;
+        strafing += auto.0.strafing;
+        vertical += auto.0.vertical;
+    }
+
+    let update = VelocityData {
+        forwards_left,
+        forwards_right,
+        strafing,
+        vertical
+    }.clamp();
+
+    let _ = serial.3.try_send(DownstreamMessage::VelocityUpdate(update));
 }
 
 pub enum SerialNotification {

@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use common::controller::DownstreamMessage;
+use common::controller::{DownstreamMessage, VelocityData};
 use crate::Serial;
 
 pub struct GamepadPlugin;
@@ -14,6 +14,7 @@ impl Plugin for GamepadPlugin {
 }
 
 struct CurrentGamepad(Gamepad);
+pub struct JoyVelo(pub VelocityData);
 
 fn gamepad_connections(
     mut commands: Commands,
@@ -27,6 +28,7 @@ fn gamepad_connections(
 
                 if current_gamepad.is_none() {
                     commands.insert_resource(CurrentGamepad(*id));
+                    commands.insert_resource(JoyVelo(VelocityData::default()));
                 }
             }
             GamepadEventType::Disconnected => {
@@ -35,6 +37,7 @@ fn gamepad_connections(
                 if let Some(CurrentGamepad(old_id)) = current_gamepad.as_deref() {
                     if old_id == id {
                         commands.remove_resource::<CurrentGamepad>();
+                        commands.remove_resource::<JoyVelo>();
                     }
                 }
             }
@@ -47,7 +50,7 @@ fn gamepad_input(
     axes: Res<Axis<GamepadAxis>>,
     buttons: Res<Input<GamepadButton>>,
     current_gamepad: Option<Res<CurrentGamepad>>,
-    serial: Res<Serial>
+    mut velo: ResMut<JoyVelo>
 ) {
     let gamepad = if let Some(gp) = current_gamepad {
         gp.0
@@ -71,7 +74,7 @@ fn gamepad_input(
         };
 
         let velocity = common::joystick_math(lx, ly, rx, ry);
-        let _ = serial.3.try_send(DownstreamMessage::VelocityUpdate(velocity));
+        velo.0 = velocity;
     }
 
     // TODO maybe handle buttons

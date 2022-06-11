@@ -1,6 +1,6 @@
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
-use crate::{CameraDisplay, ControllerData, EStopButton, EStopText, ResetButton};
+use crate::{CameraDisplay, ControllerData, EStopButton, EStopText, GoalDisplay, ResetButton};
 use crate::robot::RobotData;
 
 pub struct UiPlugin;
@@ -152,6 +152,13 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ).with_children(|parent| {
                     parent.spawn_bundle(create_text("Pressure: ", 20.0, &asset_server));
                     parent.spawn_bundle(create_text("Psi: ", 15.0, &asset_server)).insert(RobotData::Pressure);
+                });
+
+                parent.spawn_bundle(
+                    create_rect()
+                ).with_children(|parent| {
+                    parent.spawn_bundle(create_text("Autonomous: ", 20.0, &asset_server));
+                    parent.spawn_bundle(create_text("Goal: ", 15.0, &asset_server)).insert(GoalDisplay);
                 });
 
                 parent.spawn_bundle(

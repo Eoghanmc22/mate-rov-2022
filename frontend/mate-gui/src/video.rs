@@ -3,7 +3,9 @@ use std::sync::Arc;
 use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureFormat};
 use crossbeam::channel::{bounded, unbounded, Receiver, Sender};
-use crate::{CameraSelectionPanel, create_text, utils};
+use common::controller::VelocityData;
+use cv::OpenCvHandler;
+use crate::{CameraSelectionPanel, create_text, Serial, utils};
 use crate::video::camera::{CameraEvent, StreamEvent};
 
 pub struct VideoPlugin;
@@ -12,18 +14,30 @@ impl Plugin for VideoPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_startup_system(stream_video)
+            .insert_resource(AutoVelo(VelocityData::default()))
+            .add_event::<AutoMsgEvent>()
             .add_system(display_addition)
             .add_system(select_camera)
             .add_system(stream_reader)
-            .add_system(camera_reader);
+            .add_system(camera_reader)
+        ;
     }
 }
 
 struct Stream(Receiver<Image>, Sender<Image>, Sender<StreamEvent>, Receiver<CameraEvent>);
 struct ImageHandle(Handle<Image>);
+pub struct AutoVelo(pub VelocityData);
+pub struct AutoMsgEvent(pub String);
 
 #[derive(Component)]
 pub struct CameraDisplay;
+
+
+#[derive(Component)]
+pub struct GoalDisplay;
+
+#[derive(Component)]
+pub struct OpenCvTaskButton(Box<dyn OpenCvHandler + Send + Sync>);
 
 #[derive(Component)]
 pub struct CameraSelector(i32);
@@ -33,7 +47,6 @@ fn stream_video(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     let (tx_recycle, rx_recycle) = bounded::<Image>(1);
     let (tx_stream_event, rx_stream_event) = bounded::<StreamEvent>(1);
     let (tx_camera_event, rx_camera_event) = unbounded::<CameraEvent>();
-    let tx_camera_event = Arc::new(tx_camera_event);
     thread::Builder::new()
         .name("Video Provider".to_owned())
         .spawn(move || utils::error_boundary(|| camera::produce_stream(&tx_data, &rx_recycle, &rx_stream_event, tx_camera_event.clone())))
@@ -72,7 +85,7 @@ fn stream_reader(stream: Res<Stream>, mut images: ResMut<Assets<Image>>, image_h
     }
 }
 
-fn camera_reader(mut commands: Commands, panel_query: Query<Entity, With<CameraSelectionPanel>>, child_query: Query<Entity, With<CameraSelector>>, stream: Res<Stream>, asset_server: Res<AssetServer>) {
+fn camera_reader(mut commands: Commands, panel_query: Query<Entity, With<CameraSelectionPanel>>, child_query: Query<Entity, With<CameraSelector>>, stream: Res<Stream>, asset_server: Res<AssetServer>, mut auto_velo: ResMut<AutoVelo>, mut msg_events: EventWriter<AutoMsgEvent>) {
     for event in stream.3.try_iter() {
         match event {
             CameraEvent::AvailableDevices { cameras } => {
@@ -103,6 +116,26 @@ fn camera_reader(mut commands: Commands, panel_query: Query<Entity, With<CameraS
                     commands.entity(display).insert_children(0, &children_new);
                 }
             }
+            CameraEvent::AutonomousUpdate { velocity_data, goal_msg } => {
+                auto_velo.0 = velocity_data;
+                msg_events.send(AutoMsgEvent(goal_msg))
+            }
+        }
+    }
+}
+
+fn update_displays_auto(mut query: Query<&mut Text, With<GoalDisplay>>, mut ev_data: EventReader<AutoMsgEvent>) {
+    for AutoMsgEvent(msg) in ev_data.iter() {
+        for (mut text) in query.iter_mut() {
+            if text.sections.len() == 1 {
+                let mut new_section = text.sections[0].clone();
+                new_section.value = String::new();
+                text.sections.push(new_section);
+            }
+            if text.sections == 2 {
+                let section = &mut text.sections[1];
+                section.value = format!("{}", msg);
+            }
         }
     }
 }
@@ -111,6 +144,8 @@ mod camera {
     use std::thread::{Builder, JoinHandle};
     use std::time::{Duration, Instant};
     use opencv::prelude::*;
+    use common::controller::VelocityData;
+    use cv::OpenCvHandler;
     use super::*;
 
     pub enum StreamEvent {
@@ -120,20 +155,30 @@ mod camera {
         OpenNamed {
             file: String
         },
+        FrameHandler {
+            processor: Option<Box<dyn OpenCvHandler + Send>>
+        },
         Close
     }
 
     pub enum CameraEvent {
         AvailableDevices {
             cameras: Vec<i32>
+        },
+        AutonomousUpdate {
+            velocity_data: VelocityData,
+            goal_msg: String
         }
     }
 
-    pub(super) fn produce_stream(tx_data: &Sender<Image>, rx_recycle: &Receiver<Image>, rx_stream_event: &Receiver<StreamEvent>, tx_camera_event: Arc<Sender<CameraEvent>>) -> anyhow::Result<!> {
+    pub(super) fn produce_stream(tx_data: &Sender<Image>, rx_recycle: &Receiver<Image>, rx_stream_event: &Receiver<StreamEvent>, tx_camera_event: Sender<CameraEvent>) -> anyhow::Result<!> {
         let mut video_capture = None;
         let mut selected_camera = None;
-        let mut thread_handle : Option<JoinHandle<Result<Vec<i32>, anyhow::Error>>> = None;
+        let mut autodetect_thread_handle: Option<JoinHandle<anyhow::Result<Vec<i32>>>> = None;
         let mut last_cameras = Some(vec![]);
+
+        let mut opencv_processor = None;
+        let mut opencv_thread_handle: Option<JoinHandle<anyhow::Result<((VelocityData, String), Box<dyn OpenCvHandler + Send>)>>> = None;
 
         let mut mat_1 = Mat::default();
         let mut mat_2 = Mat::default();
@@ -147,9 +192,25 @@ mod camera {
                 video_capture = None;
                 selected_camera = None;
 
-                if let Some(handle) = thread_handle.take() {
+                if let Some(handle) = autodetect_thread_handle.take() {
                     last_cameras = Some(handle.join().unwrap()?);
-                    thread_handle = None;
+                    autodetect_thread_handle = None;
+                }
+                if let Some(handle) = opencv_thread_handle.take() {
+                    let result = handle.join().unwrap();
+                    if let Ok(((velo, msg), handler)) = result {
+                        tx_camera_event.send(CameraEvent::AutonomousUpdate {
+                            velocity_data: velo,
+                            goal_msg: msg
+                        })?;
+                        opencv_processor = Some(handler);
+                    } else {
+                        tx_camera_event.send(CameraEvent::AutonomousUpdate {
+                            velocity_data: VelocityData::default(),
+                            goal_msg: "Error".to_owned()
+                        })?;
+                    }
+                    opencv_thread_handle = None;
                 }
 
                 match event {
@@ -167,22 +228,46 @@ mod camera {
                         }
                     }
                     StreamEvent::Close => {}
+                    StreamEvent::FrameHandler { processor } => {
+                        opencv_processor = processor;
+                    }
                 };
             }
 
-            if let Some(handle) = thread_handle.take() {
+            if let Some(handle) = autodetect_thread_handle.take() {
                 if handle.is_finished() {
                     last_cameras = Some(handle.join().unwrap()?);
-                    thread_handle = None;
+                    autodetect_thread_handle = None;
                 } else {
-                    thread_handle = Some(handle);
+                    autodetect_thread_handle = Some(handle);
+                }
+            }
+
+            if let Some(handle) = opencv_thread_handle.take() {
+                if handle.is_finished() {
+                    let result = handle.join().unwrap();
+                    if let Ok(((velo, msg), handler)) = result {
+                        tx_camera_event.send(CameraEvent::AutonomousUpdate {
+                            velocity_data: velo,
+                            goal_msg: msg
+                        })?;
+                        opencv_processor = Some(handler);
+                    } else {
+                        tx_camera_event.send(CameraEvent::AutonomousUpdate {
+                            velocity_data: VelocityData::default(),
+                            goal_msg: "Error".to_owned()
+                        })?;
+                    }
+                    opencv_thread_handle = None;
+                } else {
+                    opencv_thread_handle = Some(handle);
                 }
             }
 
             if let Some(mut last_cameras_taken) = last_cameras.take() {
                 if last_camera_check.elapsed() > camera_check_interval {
                     let tx_camera_event = tx_camera_event.clone();
-                    thread_handle = Some(Builder::new()
+                    autodetect_thread_handle = Some(Builder::new()
                         .name("Detect Cameras".to_owned())
                         .spawn(move || {
                             detect_cameras(tx_camera_event, selected_camera, &mut last_cameras_taken)?;
@@ -196,6 +281,16 @@ mod camera {
 
             if let Some(video_capture) = &mut video_capture {
                 if video_capture.read(&mut mat_1)? {
+                    let opencv_mat = mat_1.clone();
+                    if let Some(mut handler) = opencv_processor.take() {
+                        opencv_thread_handle = Some(Builder::new()
+                            .name("Opencv Processor".to_owned())
+                            .spawn(move || {
+                                let result = handler.handle_frame(&opencv_mat);
+                                result.map(|it| (it, handler))
+                            })?);
+                    }
+
                     opencv::imgproc::cvt_color(&mat_1, &mut mat_2, opencv::imgproc::COLOR_BGR2BGRA, 0)?;
                     let data = mat_2.data_bytes()?;
                     let size = mat_2.size()?;
@@ -218,7 +313,7 @@ mod camera {
         }
     }
 
-    fn detect_cameras(tx_event: Arc<Sender<CameraEvent>>, selected_camera: Option<i32>, last_cameras: &mut Vec<i32>) -> anyhow::Result<()> {
+    fn detect_cameras(tx_event: Sender<CameraEvent>, selected_camera: Option<i32>, last_cameras: &mut Vec<i32>) -> anyhow::Result<()> {
         let max_non_continuous = 10;
         let mut cameras = vec![];
         let mut missed = 0;
