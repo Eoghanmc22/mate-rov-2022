@@ -13,4 +13,3 @@ serial = { path = "../serial" }
 sensor-fusion = { path = "../sensor-fusion" }
 cv = { path = "../cv" }
 glam = "0.20.5"
-smooth-bevy-cameras = "0.4.0"
