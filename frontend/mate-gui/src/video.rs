@@ -196,6 +196,11 @@ mod camera {
         let mut last_camera_check = Instant::now();
         let camera_check_interval = Duration::from_secs(1);
 
+        tx_camera_event.send(CameraEvent::AutonomousUpdate {
+            velocity_data: VelocityData::default(),
+            goal_msg: "No message".to_owned()
+        })?;
+
 
         loop {
             for event in rx_stream_event.try_iter() {
@@ -204,23 +209,25 @@ mod camera {
 
                 if let Some(handle) = autodetect_thread_handle.take() {
                     last_cameras = Some(handle.join().unwrap()?);
-                    autodetect_thread_handle = None;
                 }
                 if let Some(handle) = opencv_thread_handle.take() {
                     let result = handle.join().unwrap();
-                    if let Ok(((velo, msg), handler)) = result {
-                        tx_camera_event.send(CameraEvent::AutonomousUpdate {
-                            velocity_data: velo,
-                            goal_msg: msg
-                        })?;
-                        opencv_processor = Some(handler);
-                    } else {
-                        tx_camera_event.send(CameraEvent::AutonomousUpdate {
-                            velocity_data: VelocityData::default(),
-                            goal_msg: "Error".to_owned()
-                        })?;
+                    match result {
+                        Ok(((velo, msg), handler)) => {
+                            tx_camera_event.send(CameraEvent::AutonomousUpdate {
+                                velocity_data: velo,
+                                goal_msg: msg
+                            })?;
+                            opencv_processor = Some(handler);
+                        }
+                        Err(e) => {
+                            tx_camera_event.send(CameraEvent::AutonomousUpdate {
+                                velocity_data: VelocityData::default(),
+                                goal_msg: "Error".to_owned()
+                            })?;
+                            println!("OpenCv error: {:?}", e);
+                        }
                     }
-                    opencv_thread_handle = None;
                 }
 
                 match event {
@@ -252,7 +259,6 @@ mod camera {
             if let Some(handle) = autodetect_thread_handle.take() {
                 if handle.is_finished() {
                     last_cameras = Some(handle.join().unwrap()?);
-                    autodetect_thread_handle = None;
                 } else {
                     autodetect_thread_handle = Some(handle);
                 }
@@ -260,20 +266,22 @@ mod camera {
 
             if let Some(handle) = opencv_thread_handle.take() {
                 if handle.is_finished() {
-                    let result = handle.join().unwrap();
-                    if let Ok(((velo, msg), handler)) = result {
-                        tx_camera_event.send(CameraEvent::AutonomousUpdate {
-                            velocity_data: velo,
-                            goal_msg: msg
-                        })?;
-                        opencv_processor = Some(handler);
-                    } else {
-                        tx_camera_event.send(CameraEvent::AutonomousUpdate {
-                            velocity_data: VelocityData::default(),
-                            goal_msg: "Error".to_owned()
-                        })?;
+                    match result {
+                        Ok(((velo, msg), handler)) => {
+                            tx_camera_event.send(CameraEvent::AutonomousUpdate {
+                                velocity_data: velo,
+                                goal_msg: msg
+                            })?;
+                            opencv_processor = Some(handler);
+                        }
+                        Err(e) => {
+                            tx_camera_event.send(CameraEvent::AutonomousUpdate {
+                                velocity_data: VelocityData::default(),
+                                goal_msg: "Error".to_owned()
+                            })?;
+                            println!("OpenCv error: {:?}", e);
+                        }
                     }
-                    opencv_thread_handle = None;
                 } else {
                     opencv_thread_handle = Some(handle);
                 }
