@@ -121,6 +121,9 @@ fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], l
                 buffer.copy_within(available - removed..available, 0);
                 *last_end = removed;
             }
+            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {
+                continue;
+            }
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                 break;
             }
@@ -150,6 +153,9 @@ fn do_write(buffer: &mut [u8], buf_partial: &mut [u8], partial_written: &mut usi
                 Ok(n) => {
                     buffer = &buffer[n..];
                 }
+                Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {
+                    continue;
+                }
                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                     let remaining = buffer.len();
                     buf_partial.copy_within(*partial_written-remaining..*partial_written, 0);
@@ -161,6 +167,7 @@ fn do_write(buffer: &mut [u8], buf_partial: &mut [u8], partial_written: &mut usi
                 }
             }
         }
+        *partial_written = 0;
     }
 
     if last_write.elapsed() > MIN_WRITE_DELAY {
@@ -176,6 +183,9 @@ fn do_write(buffer: &mut [u8], buf_partial: &mut [u8], partial_written: &mut usi
                         }
                         Ok(n) => {
                             buffer = &mut buffer[n..];
+                        }
+                        Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {
+                            continue;
                         }
                         Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                             let additional = buffer.len();
