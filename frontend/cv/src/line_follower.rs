@@ -9,7 +9,6 @@ use opencv::prelude::*;
 use opencv::types::{VectorOfPoint, VectorOfPoint2f, VectorOfVec4i, VectorOfVectorOfPoint};
 use common::controller::VelocityData;
 
-#[derive(Clone)]
 pub struct LineFollower(pub LineGoal);
 
 impl OpenCvHandler for LineFollower {

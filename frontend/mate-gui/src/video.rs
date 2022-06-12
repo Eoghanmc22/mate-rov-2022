@@ -204,9 +204,6 @@ mod camera {
 
         loop {
             for event in rx_stream_event.try_iter() {
-                video_capture = None;
-                selected_camera = None;
-
                 if let Some(handle) = autodetect_thread_handle.take() {
                     last_cameras = Some(handle.join().unwrap()?);
                 }
@@ -241,9 +238,13 @@ mod camera {
                         let new_video_capture = opencv::videoio::VideoCapture::from_file(file, opencv::videoio::CAP_ANY)?;
                         if new_video_capture.is_opened()? {
                             video_capture = Some(new_video_capture);
+                            selected_camera = None;
                         }
                     }
-                    StreamEvent::Close => {}
+                    StreamEvent::Close => {
+                        video_capture = None;
+                        selected_camera = None;
+                    }
                     StreamEvent::FrameHandler { processor } => {
                         tx_camera_event.send(CameraEvent::AutonomousUpdate {
                             velocity_data: VelocityData::default(),

@@ -1,6 +1,6 @@
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
-use cv::line_follower;
+use cv::{line_follower, take_image, up};
 use cv::line_follower::LineGoal;
 use crate::{CameraDisplay, ControllerData, EStopButton, EStopText, GoalDisplay, OpenCvTaskButton, ResetButton};
 use crate::robot::RobotData;
@@ -168,6 +168,18 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ).with_children(|parent| {
                         parent.spawn_bundle(create_text("Follow Red Line", 20.0, &asset_server));
                     }).insert(OpenCvTaskButton(Box::new(|| Some(Box::new(line_follower::LineFollower(LineGoal::FollowLine(Direction::Right)))))));
+
+                    parent.spawn_bundle(
+                        create_button()
+                    ).with_children(|parent| {
+                        parent.spawn_bundle(create_text("Take Image", 20.0, &asset_server));
+                    }).insert(OpenCvTaskButton(Box::new(|| Some(Box::new(take_image::ImageProducer)))));
+
+                    parent.spawn_bundle(
+                        create_button()
+                    ).with_children(|parent| {
+                        parent.spawn_bundle(create_text("Auto Dock", 20.0, &asset_server));
+                    }).insert(OpenCvTaskButton(Box::new(|| Some(Box::new(up::AutoUp)))));
 
                     parent.spawn_bundle(
                         create_button()
