@@ -33,16 +33,17 @@ pub fn listen<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + 'static>(
 const SERIAL_TOKEN: Token = Token(0);
 
 pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + 'static>(port: &str, mut data_callback: F, commands: Option<Receiver<DownstreamMessage>>) -> anyhow::Result<!> {
-    let mut poll = Poll::new()?;
+    let mut poll = Poll::new().context("could not create poll")?;
     let mut events = Events::with_capacity(10);
 
-    let mut port = mio_serial::new(port, common::BAUD_RATE_CTRL).open_native_async()?;
+    let mut port = mio_serial::new(port, common::BAUD_RATE_CTRL).open_native_async().context("could not open serial stream")?;
 
-    port.clear(ClearBuffer::All)?;
+    // todo try commenting this out on win?
+    port.clear(ClearBuffer::All).context("could not clear port")?;
 
     poll.registry()
         .register(&mut port, SERIAL_TOKEN, Interest::READABLE | Interest::WRITABLE)
-        .unwrap();
+        .context("could not register port")?;
 
     let mut buf_read = [0; 4098];
     let mut last_end = 0;
@@ -55,18 +56,19 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + '
 
     loop {
         // Fixme better way to wake up this thread?
-        poll.poll(&mut events, Some(Duration::from_millis(10)))?;
+        poll.poll(&mut events, Some(MIN_WRITE_DELAY)).context("could not poll")?;
 
         for event in &events {
             match event.token() {
                 SERIAL_TOKEN => {
+                    println!("event: r: {}, w: {}", event.is_readable(), event.is_writable());
                     if event.is_readable() {
-                        do_read(&mut buf_read, &mut last_end, &mut data_callback, &mut port, &mut allow_writes)?;
+                        do_read(&mut buf_read, &mut last_end, &mut data_callback, &mut port, &mut allow_writes).context("Read error")?;
                     }
                     if let Some(ref commands) = commands {
                         if event.is_writable() {
                             if allow_writes {
-                                writeable = do_write(&mut buf_write, &mut buf_partial, &mut partial_written, commands, &mut port, &mut last_write)?;
+                                writeable = do_write(&mut buf_write, &mut buf_partial, &mut partial_written, commands, &mut port, &mut last_write).context("Write error")?;
                             } else {
                                 writeable = true;
                             }
@@ -79,7 +81,7 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + '
 
         if let Some(ref commands) = commands {
             if writeable && allow_writes {
-                writeable = do_write(&mut buf_write, &mut buf_partial, &mut partial_written, commands, &mut port, &mut last_write)?;
+                writeable = do_write(&mut buf_write, &mut buf_partial, &mut partial_written, commands, &mut port, &mut last_write).context("Write error")?;
             }
         }
     }
@@ -87,14 +89,16 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + '
 
 fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], last_end: &mut usize, data_callback: &mut F, port: &mut SerialStream, allow_writes: &mut bool) -> anyhow::Result<()> {
     loop {
+        if buffer[*last_end..].len() == 0 {
+            bail!("Read buffer full")
+        }
+
         match port.read(&mut buffer[*last_end..]) {
             Ok(0) => {
-                return Err(io::Error::new(
-                    io::ErrorKind::BrokenPipe,
-                    "Remote device was disconnected",
-                )).context("Read zero");
+                bail!("Remote device was disconnected");
             }
             Ok(read) => {
+                println!("read: {}", read);
                 let available = read + *last_end;
                 let frames = buffer[..available]
                     .split_inclusive_mut(common::end_of_frame);
@@ -145,10 +149,7 @@ fn do_write(buffer: &mut [u8], buf_partial: &mut [u8], partial_written: &mut usi
         while !buffer.is_empty() {
             match port.write(buffer) {
                 Ok(0) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::WriteZero,
-                        "failed to write whole buffer",
-                    )).context("Write zero");
+                    bail!("Failed to write buffer");
                 }
                 Ok(n) => {
                     buffer = &buffer[n..];
@@ -189,7 +190,7 @@ fn do_write(buffer: &mut [u8], buf_partial: &mut [u8], partial_written: &mut usi
                         }
                         Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                             let additional = buffer.len();
-                            assert!(additional < buf_partial.len() - *partial_written);
+                            assert!(additional < buf_partial.len() - *partial_written, "partial write buffer is full");
                             buf_partial[*partial_written..*partial_written+additional].copy_from_slice(buffer);
                             *partial_written += additional;
                             return Ok(false);
