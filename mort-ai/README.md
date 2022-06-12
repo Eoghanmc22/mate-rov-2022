@@ -1,3 +1,5 @@
+Make sure ffmpeg is installed
+
 Install YOLOv5 (only needed once)
 
 ```bash
