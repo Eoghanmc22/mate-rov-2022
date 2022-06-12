@@ -50,25 +50,19 @@ fn line_tracker(image: &Mat, goal: LineGoal) -> anyhow::Result<(VelocityData, Li
     // TODO move forwards or backwards depending on amount of lines seen
 
     if let Some(cnt) = contour {
-        if contour_area(&cnt)? > 500.0 {
-            let center = find_center(&cnt)?;
-            let ratio = point_to_ratio(&center, &image);
+        let center = find_center(&cnt)?;
+        let ratio = point_to_ratio(&center, &image);
 
-            return match goal {
-                LineGoal::CenterLine(direction) => {
-                    Ok(center_line(ratio.x, ratio.y, direction))
-                }
-                LineGoal::FollowLine(direction) => {
-                    Ok(follow_line(&mask, &cnt, ratio.x, ratio.y, direction))
-                }
-                LineGoal::LostLine => {
-                    Ok(center_line(ratio.x, ratio.y, None))
-                }
+        return match goal {
+            LineGoal::CenterLine(direction) => {
+                Ok(center_line(ratio.x, ratio.y, direction))
             }
-        } else if let LineGoal::LostLine = goal {
-            bail!("No line found");
-        } else {
-            return Ok((VelocityData::default(), LineGoal::LostLine));
+            LineGoal::FollowLine(direction) => {
+                Ok(follow_line(&mask, &cnt, ratio.x, ratio.y, direction))
+            }
+            LineGoal::LostLine => {
+                Ok(center_line(ratio.x, ratio.y, None))
+            }
         }
     } else if let LineGoal::LostLine = goal {
         bail!("No line found");
@@ -90,7 +84,7 @@ fn center_line(x: f64, y: f64, next_direction: Option<Direction>) -> (VelocityDa
         vertical: (-error_y * correction_multiplier) as f32
     };
 
-    let goal = if error_x.abs() < 0.1 && error_y.abs() < 0.1 {
+    let goal = if error_x.abs() < 0.2 && error_y.abs() < 0.2 {
         LineGoal::FollowLine(next_direction.unwrap_or(Direction::Right))
     } else {
         LineGoal::CenterLine(next_direction)
@@ -105,7 +99,7 @@ fn follow_line(mask: &Mat, line: &Contour, x: f64, y: f64, last_direction: Direc
     let correction_multiplier = 1.0;
     let bias_multiplier = 0.3;
 
-    if error_x.abs() > 0.1 && error_y.abs() > 0.1 {
+    if error_x.abs() > 0.2 && error_y.abs() > 0.2 {
         return (VelocityData::default(), LineGoal::CenterLine(Some(last_direction)));
     }
 
@@ -122,10 +116,10 @@ fn follow_line(mask: &Mat, line: &Contour, x: f64, y: f64, last_direction: Direc
         vertical: (-error_y * correction_multiplier + vertical_bias * bias_multiplier) as f32
     };
 
-    let x_start = mask.cols() * 2 / 5;
-    let x_end = mask.cols() * 3 / 5;
-    let y_start = mask.rows() * 2 / 5;
-    let y_end = mask.rows() * 3 / 5;
+    let x_start = mask.cols() * 1 / 5;
+    let x_end = mask.cols() * 4 / 5;
+    let y_start = mask.rows() * 1 / 5;
+    let y_end = mask.rows() * 4 / 5;
 
     let left_trigger = (Point::new(x_start, y_start), Point::new(x_start, y_end));
     let right_trigger = (Point::new(x_end, y_start), Point::new(x_end, y_end));
