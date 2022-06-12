@@ -48,7 +48,7 @@ impl<Lx, Ly, Rx, Ry> Joystick<Lx, Ly, Rx, Ry>
 
         let lx = -common::clamp_map_val(lx, min, max);
         let ly = -common::clamp_map_val(ly, min, max);
-        let rx = -common::clamp_map_val(rx, min, max);
+        let rx = common::clamp_map_val(rx, min, max);
         let ry = -common::clamp_map_val(ry, min, max);
 
         common::joystick_math(lx, ly, rx, ry)
