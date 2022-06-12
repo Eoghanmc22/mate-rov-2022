@@ -38,7 +38,6 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + '
 
     let mut port = mio_serial::new(port, common::BAUD_RATE_CTRL).open_native_async().context("could not open serial stream")?;
 
-    // todo try commenting this out on win?
     port.clear(ClearBuffer::All).context("could not clear port")?;
 
     poll.registry()
@@ -61,7 +60,6 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + '
         for event in &events {
             match event.token() {
                 SERIAL_TOKEN => {
-                    println!("event: r: {}, w: {}", event.is_readable(), event.is_writable());
                     if event.is_readable() {
                         do_read(&mut buf_read, &mut last_end, &mut data_callback, &mut port, &mut allow_writes).context("Read error")?;
                     }
@@ -89,21 +87,18 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + '
 
 fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], last_end: &mut usize, data_callback: &mut F, port: &mut SerialStream, allow_writes: &mut bool) -> anyhow::Result<()> {
     loop {
-        if buffer[*last_end..].len() == 0 {
-            bail!("Read buffer full")
-        }
+        assert!(buffer[*last_end..].len() > 0, "Read buffer full");
 
         match port.read(&mut buffer[*last_end..]) {
             Ok(0) => {
                 bail!("Remote device was disconnected");
             }
             Ok(read) => {
-                println!("read: {}", read);
                 let available = read + *last_end;
                 let frames = buffer[..available]
                     .split_inclusive_mut(common::end_of_frame);
 
-                let mut removed = 0;
+                let mut remaining = 0;
                 for frame in frames {
                     if common::end_of_frame(frame.last().unwrap()) {
                         match common::read(frame) {
@@ -117,13 +112,13 @@ fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], l
                             }
                         }
                     } else {
-                        removed = frame.len();
+                        remaining = frame.len();
                         break;
                     }
                 }
 
-                buffer.copy_within(available - removed..available, 0);
-                *last_end = removed;
+                buffer.copy_within(available - remaining..available, 0);
+                *last_end = remaining;
             }
             Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {
                 continue;
