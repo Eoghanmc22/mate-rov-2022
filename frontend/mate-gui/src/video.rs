@@ -211,8 +211,7 @@ mod camera {
                     last_cameras = Some(handle.join().unwrap()?);
                 }
                 if let Some(handle) = opencv_thread_handle.take() {
-                    let result = handle.join().unwrap();
-                    match result {
+                    match handle.join().unwrap() {
                         Ok(((velo, msg), handler)) => {
                             tx_camera_event.send(CameraEvent::AutonomousUpdate {
                                 velocity_data: velo,
@@ -266,7 +265,7 @@ mod camera {
 
             if let Some(handle) = opencv_thread_handle.take() {
                 if handle.is_finished() {
-                    match result {
+                    match handle.join().unwrap() {
                         Ok(((velo, msg), handler)) => {
                             tx_camera_event.send(CameraEvent::AutonomousUpdate {
                                 velocity_data: velo,
