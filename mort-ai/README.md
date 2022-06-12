@@ -11,7 +11,7 @@ cd ../
 
 Place video in directory
 
-Reduce framerate and run ai
+Reduce framerate and run ai  (change video.mp4 in the following command to the actual name of the file)
 
 ```bash
 ffmpeg -i video.mp4 -r 10 out.mp4 -y && python3 yolov5/detect.py --source out.mp4 --weights model/best.pt --data model/data.yaml
