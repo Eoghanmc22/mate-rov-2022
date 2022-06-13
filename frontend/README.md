@@ -1,7 +1,7 @@
 Run using the following command
 
 ```bash
-cargo run --release --bin mate_gui
+cargo run --bin mate_gui
 ```
 
 X button on window is problematic \
