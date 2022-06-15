@@ -1,6 +1,6 @@
 pub mod line_follower;
 pub mod take_image;
-pub mod up;
+pub mod dock;
 
 use opencv::prelude::*;
 use sensor_fusion::state::{MotorState, RobotState};
