@@ -18,7 +18,13 @@ pub struct VelocityData {
 
 impl VelocityData {
     pub fn clamp(&self) -> VelocityData {
-        fn clamp(num: f32) -> f32 { num.clamp(-1.0, 1.0) }
+        fn clamp(num: f32) -> f32 {
+            if !num.is_normal() {
+                return 0.0;
+            }
+
+            num.clamp(-1.0, 1.0)
+        }
 
         VelocityData {
             forwards_left: clamp(self.forwards_left),
