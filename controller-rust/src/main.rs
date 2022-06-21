@@ -243,8 +243,7 @@ fn USART0_RX() {
             if let Some(ref mut usb_producer) = USB_READ_PRODUCER.borrow(cs).borrow_mut().deref_mut() {
                 // Read all available data
                 while let Ok(byte) = usb.read() {
-                    //todo remove unwrap
-                    let _ = usb_producer.enqueue(byte).unwrap();
+                    let _ = usb_producer.enqueue(byte);
                 }
             }
         }
