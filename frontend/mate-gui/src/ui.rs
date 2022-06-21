@@ -1,6 +1,7 @@
+use std::thread;
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
-use cv::{line_follower, take_image, dock};
+use cv::{line_follower, take_image, dock, mosaic};
 use cv::line_follower::LineGoal;
 use crate::{CameraDisplay, ControllerData, EStopButton, EStopText, GoalDisplay, OpenCvTaskButton, ResetButton};
 use crate::robot::RobotData;
@@ -174,6 +175,24 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ).with_children(|parent| {
                         parent.spawn_bundle(create_text("Take Image", 20.0, &asset_server));
                     }).insert(OpenCvTaskButton(Box::new(|| Some(Box::new(take_image::ImageProducer)))));
+
+                    parent.spawn_bundle(
+                        create_button()
+                    ).with_children(|parent| {
+                        parent.spawn_bundle(create_text("Reset Image Counter", 20.0, &asset_server));
+                    }).insert(OpenCvTaskButton(Box::new(|| {
+                        take_image::reset_counter();
+                        None
+                    })));
+
+                    parent.spawn_bundle(
+                        create_button()
+                    ).with_children(|parent| {
+                        parent.spawn_bundle(create_text("Mosaic", 20.0, &asset_server));
+                    }).insert(OpenCvTaskButton(Box::new(|| {
+                        thread::spawn(|| mosaic::generate_mosaic().unwrap());
+                        None
+                    })));
 
                     parent.spawn_bundle(
                         create_button()

@@ -36,14 +36,14 @@ pub enum Direction {
 }
 
 fn line_tracker(image: &Mat, goal: LineGoal) -> anyhow::Result<(VelocityData, LineGoal)> {
-    let blur = blur(&image)?;
+    let blur = blur(image)?;
     let (image, mask) = isolate_red(&blur)?;
     let contours = find_contours(&mask)?;
 
     let contour = contours.iter()
         .max_by(|a, b| f64::total_cmp(
             &contour_area(a).unwrap_or(0.0),
-            &contour_area(a).unwrap_or(0.0)
+            &contour_area(b).unwrap_or(0.0)
         ));
 
     // TODO move forwards or backwards depending on amount of lines seen
@@ -52,7 +52,7 @@ fn line_tracker(image: &Mat, goal: LineGoal) -> anyhow::Result<(VelocityData, Li
         let center = find_center(&cnt)?;
         let ratio = point_to_ratio(&center, &image);
 
-        return match goal {
+        match goal {
             LineGoal::CenterLine(direction) => {
                 Ok(center_line(ratio.x, ratio.y, direction))
             }
@@ -64,9 +64,9 @@ fn line_tracker(image: &Mat, goal: LineGoal) -> anyhow::Result<(VelocityData, Li
             }
         }
     } else if let LineGoal::LostLine = goal {
-        bail!("No line found");
+        bail!("No line found")
     } else {
-        return Ok((VelocityData::default(), LineGoal::LostLine));
+        Ok((VelocityData::default(), LineGoal::LostLine))
     }
 }
 
@@ -77,9 +77,9 @@ fn center_line(x: f64, y: f64, next_direction: Option<Direction>) -> (VelocityDa
     let correction_multiplier = 1.0;
 
     let update = VelocityData {
-        forwards_left: 0.0,
-        forwards_right: 0.0,
-        strafing: (error_x * correction_multiplier) as f32,
+        forwards_left: (error_x * correction_multiplier) as f32,
+        forwards_right: (error_x * correction_multiplier) as f32,
+        strafing: 0.0,
         vertical: (-error_y * correction_multiplier) as f32
     };
 
@@ -109,9 +109,9 @@ fn follow_line(mask: &Mat, line: &Contour, x: f64, y: f64, last_direction: Direc
     };
 
     let update = VelocityData {
-        forwards_left: 0.0,
-        forwards_right: 0.0,
-        strafing: (error_x * correction_multiplier + horizontal_bias * bias_multiplier) as f32,
+        forwards_left: (error_x * correction_multiplier + horizontal_bias * bias_multiplier) as f32,
+        forwards_right: (error_x * correction_multiplier + horizontal_bias * bias_multiplier) as f32,
+        strafing: 0.0,
         vertical: (-error_y * correction_multiplier + vertical_bias * bias_multiplier) as f32
     };
 

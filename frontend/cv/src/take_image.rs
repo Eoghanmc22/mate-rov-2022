@@ -18,3 +18,7 @@ impl OpenCvHandler for ImageProducer {
         bail!("Image created successfully")
     }
 }
+
+pub fn reset_counter() {
+    COUNTER.store(0, Ordering::Release);
+}
