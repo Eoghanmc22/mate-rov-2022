@@ -21,7 +21,7 @@ pub fn generate_mosaic() -> anyhow::Result<()> {
 
     println!("Rotating images");
     for img in &mut images[0..4] { *img = img.rotate90(); }
-    for img in &mut images[4..8] { *img = img.rotate270(); }
+    for (idx, img) in images[4..8].to_owned().iter().rev().enumerate() { images[idx + 4] = img.rotate270(); }
 
     println!("Resizing images");
     images.iter_mut().for_each(|image| *image = image.resize(1280, 720, FilterType::Lanczos3));
