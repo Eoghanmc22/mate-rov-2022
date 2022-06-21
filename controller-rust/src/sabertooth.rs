@@ -8,9 +8,9 @@ pub const SABERTOOTH_A: u8 = 128;
 pub const SABERTOOTH_B: u8 = 129;
 
 // Motor addresses and ids
-pub const MOTOR_LEFT: Motor = Motor(SABERTOOTH_A, 0, 1);
-pub const MOTOR_RIGHT: Motor = Motor(SABERTOOTH_A, 4, 1);
-pub const MOTOR_VERTICAL: Motor = Motor(SABERTOOTH_B, 0, 1);
+pub const MOTOR_LEFT: Motor = Motor(SABERTOOTH_A, 4, -1);
+pub const MOTOR_RIGHT: Motor = Motor(SABERTOOTH_A, 0, 1);
+pub const MOTOR_VERTICAL: Motor = Motor(SABERTOOTH_B, 0, -1);
 pub const MOTOR_STRAFING: Motor = Motor(SABERTOOTH_B, 4, 1);
 
 /// Writes the auto bauding char
