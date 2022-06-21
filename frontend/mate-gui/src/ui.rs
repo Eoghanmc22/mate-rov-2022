@@ -77,7 +77,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                 color: Color::NONE.into(),
                 ..default()
             }).with_children(|parent| {
-                parent.spawn_bundle(
+                /*parent.spawn_bundle(
                     create_rect()
                 ).with_children(|parent| {
                     parent.spawn_bundle(create_text("Acceleration: ", 20.0, &asset_server));
@@ -131,7 +131,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     parent.spawn_bundle(create_text("X: ", 15.0, &asset_server)).insert(RobotData::MagX);
                     parent.spawn_bundle(create_text("Y: ", 15.0, &asset_server)).insert(RobotData::MagY);
                     parent.spawn_bundle(create_text("Z: ", 15.0, &asset_server)).insert(RobotData::MagZ);
-                });
+                });*/
 
                 parent.spawn_bundle(
                     create_rect()
@@ -151,12 +151,12 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                     parent.spawn_bundle(create_text("Last Ping: ", 15.0, &asset_server)).insert(ControllerData::LastPing);
                 });
 
-                parent.spawn_bundle(
+                /*parent.spawn_bundle(
                     create_rect()
                 ).with_children(|parent| {
                     parent.spawn_bundle(create_text("Pressure: ", 20.0, &asset_server));
                     parent.spawn_bundle(create_text("Psi: ", 15.0, &asset_server)).insert(RobotData::Pressure);
-                });
+                });*/
 
                 parent.spawn_bundle(
                     create_rect()
