@@ -51,7 +51,7 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + '
     let mut partial_written = 0;
     let mut writeable = false;
     let mut last_write = Instant::now();
-    let mut allow_writes = false;
+    let mut earlist_write = None;
 
     loop {
         // Fixme better way to wake up this thread?
@@ -61,11 +61,11 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + '
             match event.token() {
                 SERIAL_TOKEN => {
                     if event.is_readable() {
-                        do_read(&mut buf_read, &mut last_end, &mut data_callback, &mut port, &mut allow_writes).context("Read error")?;
+                        do_read(&mut buf_read, &mut last_end, &mut data_callback, &mut port, &mut earlist_write).context("Read error")?;
                     }
                     if let Some(ref commands) = commands {
                         if event.is_writable() {
-                            if allow_writes {
+                            if earlist_write.map(|time| time < Instant::now()).unwrap_or(false)  {
                                 writeable = do_write(&mut buf_write, &mut buf_partial, &mut partial_written, commands, &mut port, &mut last_write).context("Write error")?;
                             } else {
                                 writeable = true;
@@ -78,14 +78,14 @@ pub fn listen_to_port<F: FnMut(UpstreamMessage) -> anyhow::Result<()> + Send + '
         }
 
         if let Some(ref commands) = commands {
-            if writeable && allow_writes {
+            if writeable && earlist_write.map(|time| time < Instant::now()).unwrap_or(false)  {
                 writeable = do_write(&mut buf_write, &mut buf_partial, &mut partial_written, commands, &mut port, &mut last_write).context("Write error")?;
             }
         }
     }
 }
 
-fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], last_end: &mut usize, data_callback: &mut F, port: &mut SerialStream, allow_writes: &mut bool) -> anyhow::Result<()> {
+fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], last_end: &mut usize, data_callback: &mut F, port: &mut SerialStream, earlist_write: &mut Option<Instant>) -> anyhow::Result<()> {
     loop {
         assert!(buffer[*last_end..].len() > 0, "Read buffer full");
 
@@ -105,7 +105,9 @@ fn do_read<F: FnMut(UpstreamMessage) -> anyhow::Result<()>>(buffer: &mut [u8], l
                             Ok(message) => {
                                 (data_callback)(message)?;
 
-                                *allow_writes = true;
+                                if earlist_write.is_none() {
+                                    *earlist_write = Some(Instant::now() + Duration::from_secs(7));
+                                }
                             }
                             Err(com_error) => {
                                 println!("read error: {:?}", com_error);
