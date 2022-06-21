@@ -188,7 +188,7 @@ fn main() -> ! {
 
         // Read emergency stop button
         {
-            let emergency_stop = estop_in.is_low();
+            let emergency_stop = estop_in.is_high();
             state.update_emergency_stop(emergency_stop);
         }
 
