@@ -194,7 +194,7 @@ mod camera {
         let mut mat_2 = Mat::default();
 
         let mut last_camera_check = Instant::now();
-        let camera_check_interval = Duration::from_secs(1);
+        let camera_check_interval = Duration::from_secs(3);
 
         tx_camera_event.send(CameraEvent::AutonomousUpdate {
             velocity_data: VelocityData::default(),
@@ -337,7 +337,7 @@ mod camera {
     }
 
     fn detect_cameras(tx_event: Sender<CameraEvent>, selected_camera: Option<i32>, last_cameras: &mut Vec<i32>) -> anyhow::Result<()> {
-        let max_non_continuous = 10;
+        let max_non_continuous = 5;
         let mut cameras = vec![];
         let mut missed = 0;
 
