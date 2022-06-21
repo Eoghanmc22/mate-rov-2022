@@ -19,7 +19,7 @@ use crate::gamepad::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugin(Render3D)
+        //.add_plugin(Render3D)
         .add_plugin(UiPlugin)
         .add_plugin(VideoPlugin)
         .add_plugin(RobotPlugin)
